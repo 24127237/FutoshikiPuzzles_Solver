@@ -87,3 +87,24 @@ class State:
         new_state = State(self.n, self.grid)
         new_state.possible_values = copy.deepcopy(self.possible_values)
         return new_state
+
+    def get_neighbors(self, rules):
+        """
+        Sinh ra các trạng thái (nhánh) tiếp theo hợp lệ từ trạng thái hiện tại.
+        Sử dụng MRV Heuristic để chọn ô điền tiếp theo.
+        """
+        neighbors = []
+        cell = self.get_mrv_cell()
+        if not cell:
+            return neighbors # Bảng đã đầy hoặc không còn lựa chọn
+            
+        row, col = cell
+        for val in self.possible_values[row][col]:
+            new_state = self.clone()
+            new_state.assign(row, col, val)
+            
+            # Kiểm tra trạng thái mới có hợp lệ luật Futoshiki hay không
+            if rules.is_valid(new_state.grid):
+                neighbors.append(new_state)
+                
+        return neighbors
