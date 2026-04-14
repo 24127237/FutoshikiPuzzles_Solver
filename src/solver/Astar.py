@@ -9,11 +9,22 @@ class AstarSolver:
         """Chuyển đổi grid (list of lists) thành tuple of tuples để dùng làm key trong dict."""
         return tuple(tuple(row) for row in grid)
 
-    def heuristic(self, state): # must be admissible
+    def heuristic(self, state, rules): # must be admissible
         # 1. Đếm số ô chưa điền (số 0)
-        return len(state.get_empty_cells())
-        # 2. minimum number of the additional assignments needed etc...
-        # 3. Đếm số ràng buộc bị vi phạm (empty)
+        h1 = len(state.get_empty_cells())
+        
+        # 2. Tổng kích thước các cụm bất đẳng thức chưa chốt
+        ineq_chains = rules.get_inequality_chain_sizes(state.grid)
+        h2 = sum(ineq_chains)
+
+        # 3. Cells with empty domains
+        h3 = 0
+        for r in range(state.n):
+            for c in range(state.n):
+                if state.grid[r][c] == 0 and len(state.possible_values[r][c]) == 0:
+                    return float('inf') # Cắt nhánh ngay lập tức
+        
+        return h1 + h2 + h3
 
     def build_path(self, parents, current_grid_tuple):
         """Tái tạo đường đi từ trạng thái đích ngược về trạng thái ban đầu."""
@@ -32,7 +43,7 @@ class AstarSolver:
         
         # frontier lưu: (f_cost, tie_breaker, current_state)
         # f = g + h. Tại trạng thái đầu g = 0
-        frontier.put((self.heuristic(initial_state), next(counter), initial_state))
+        frontier.put((self.heuristic(initial_state, rules), next(counter), initial_state))
         
         # reached lưu chi phí g (cost từ bước đầu đến hiện tại): { grid_tuple : g_cost }
         reached = {init_grid_tuple: 0}
@@ -49,15 +60,16 @@ class AstarSolver:
                 
             cur_g = reached[current_grid_tuple]
 
-            for next_state in current_state.get_neighbors(rules):
+            for next_state in current_state.get_valid_neighbors(rules):
                 next_grid_tuple = self._hashable(next_state.grid)
                 new_g = cur_g + 1 # Mỗi bước điền 1 số ta tốn chi phí 1 (g)
-                new_f = new_g + self.heuristic(next_state) # f = g + h
+                new_f = new_g + self.heuristic(next_state, rules) # f = g + h
                 
                 # Nếu chưa từng đến trạng thái này hoặc tìm được đường g rẻ hơn
                 if next_grid_tuple not in reached or new_g < reached[next_grid_tuple]:
                     reached[next_grid_tuple] = new_g
-                    frontier.put((new_f, next(counter), next_state))
-                    parents[next_grid_tuple] = current_grid_tuple
+                    if new_f != float('inf'):
+                        frontier.put((new_f, next(counter), next_state))
+                        parents[next_grid_tuple] = current_grid_tuple
                     
         return None
