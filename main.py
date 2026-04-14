@@ -6,17 +6,11 @@ from src.core.state import State
 from src.solver.Astar import AstarSolver
 
 # 1. Đọc dữ liệu từ file
-n, grid, horiz, vert = read_input_file("Inputs/inputs-02.txt")
+n, grid, horiz, vert = read_input_file("Inputs/inputs-06.txt")
 
 # 2. Khởi tạo bộ Luật (Rules) và Trạng thái ban đầu (State)
 rules = FutoshikiRules(n, horiz, vert)
 initial_state = State(n, grid)
-
-# Cập nhật possible_values ban đầu theo các ô đã điền (Khóa MRV có thể bị sai nếu khâu này thiếu)
-for r in range(n):
-    for c in range(n):
-        if grid[r][c] != 0:
-            initial_state.assign(r, c, grid[r][c], rules)
 
 # 3. Chạy thuật toán A*
 solver = AstarSolver()
