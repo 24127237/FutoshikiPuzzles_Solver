@@ -29,9 +29,9 @@ class State:
             domains.append(row_domains)
         return domains
 
-    def assign(self, row, col, value):
+    def assign(self, row, col, value, rules=None):
         """
-        Điền một số vào ô và tự động cập nhật (thu hẹp) miền giá trị của hàng/cột tương ứng.
+        Điền một số vào ô và tự động cập nhật (thu hẹp) miền giá trị của hàng/cột tương ứng và áp dụng AC3.
         """
         self.grid[row][col] = value
         self.possible_values[row][col] = [value]
@@ -45,6 +45,55 @@ class State:
         for i in range(self.n):
             if i != row and value in self.possible_values[i][col]:
                 self.possible_values[i][col].remove(value)
+        
+        if rules:
+            self._ac3_propagate(rules)
+
+    def _ac3_propagate(self, rules):
+        """
+        Propagate constraints using AC3 algorithm.
+        Gọt bớt miền giá trị của các ô kề nhau nếu vi phạm dấu < hoặc >.
+        """
+        changed = True
+        while changed:
+            changed = False
+            for r in range(self.n):
+                for c in range(self.n):
+                    # Bất đẳng thức ngang
+                    if c < self.n - 1:
+                        const = rules.horiz_const[r][c]
+                        if const == 1:   # Trái < Phải
+                            if self._revise(r, c, r, c + 1): changed = True
+                        elif const == -1: # Trái > Phải
+                            if self._revise(r, c + 1, r, c): changed = True
+                            
+                    # Bất đẳng thức dọc
+                    if r < self.n - 1:
+                        const = rules.vert_const[r][c]
+                        if const == 1:   # Trên < Dưới
+                            if self._revise(r, c, r + 1, c): changed = True
+                        elif const == -1: # Trên > Dưới
+                            if self._revise(r + 1, c, r, c): changed = True
+
+    def _revise(self, r1, c1, r2, c2):
+        """Xóa giá trị vô lý giữa 2 ô (Ô 1 < Ô 2). Trả về True nếu có domain bị thu hẹp."""
+        dom_a, dom_b = self.possible_values[r1][c1], self.possible_values[r2][c2]
+        if not dom_a or not dom_b: return False
+        
+        revised = False
+        max_b = max(dom_b)
+        for val in list(dom_a):
+            if val >= max_b:
+                dom_a.remove(val)
+                revised = True
+                
+        if dom_a:
+            min_a = min(dom_a)
+            for val in list(dom_b):
+                if val <= min_a:
+                    dom_b.remove(val)
+                    revised = True
+        return revised
 
     def get_empty_cells(self):
         """
@@ -87,3 +136,24 @@ class State:
         new_state = State(self.n, self.grid)
         new_state.possible_values = copy.deepcopy(self.possible_values)
         return new_state
+
+    def get_valid_neighbors(self, rules):
+        """
+        Sinh ra các trạng thái (nhánh) tiếp theo hợp lệ từ trạng thái hiện tại.
+        Sử dụng MRV Heuristic để chọn ô điền tiếp theo.
+        """
+        neighbors = []
+        cell = self.get_mrv_cell()
+        if not cell:
+            return neighbors # Bảng đã đầy hoặc không còn lựa chọn
+            
+        row, col = cell
+        for val in self.possible_values[row][col]:
+            new_state = self.clone()
+            new_state.assign(row, col, val)
+            
+            # Kiểm tra trạng thái mới có hợp lệ luật Futoshiki hay không
+            if rules.is_valid(new_state.grid):
+                neighbors.append(new_state)
+                
+        return neighbors

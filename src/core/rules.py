@@ -3,23 +3,6 @@ class FutoshikiRules:
     Lớp này chịu trách nhiệm kiểm tra tính hợp lệ của một trạng thái lưới (Grid) 
     dựa trên các luật của trò chơi Futoshiki.
     """
-    def __init__(self, n, horizontal_constraints, vertical_constraints):
-        self.n = n
-        self.horiz_const = horizontal_constraints
-        self.vert_const = vertical_constraints
-
-    def is_valid(self, grid):
-        """
-        Kiểm tra xem lưới hiện tại (có thể chưa điền hết) có vi phạm luật nào không.
-        Trả về True nếu hợp lệ (hoặc chưa vi phạm), False nếu sai luật.
-        """
-        if not self._check_uniqueness(grid):
-            return False
-        if not self._check_horizontal_inequalities(grid):
-            return False
-        if not self._check_vertical_inequalities(grid):
-            return False
-        return True
 
     def is_solved(self, grid):
         """
@@ -91,3 +74,91 @@ class FutoshikiRules:
                     if const == -1 and not (val_top > val_bot):
                         return False
         return True
+    def __init__(self, n, horizontal_constraints, vertical_constraints):
+        self.n = n
+        self.horiz_const = horizontal_constraints
+        self.vert_const = vertical_constraints
+
+    def is_valid(self, grid):
+        """
+        Kiểm tra xem lưới hiện tại (có thể chưa điền hết) có vi phạm luật nào không.
+        Trả về True nếu hợp lệ (hoặc chưa vi phạm), False nếu sai luật.
+        """
+        if not self._check_uniqueness(grid):
+            return False
+        if not self._check_horizontal_inequalities(grid):
+            return False
+        if not self._check_vertical_inequalities(grid):
+            return False
+        return True
+
+    def get_inequality_chain_sizes(self, grid):
+        """
+        Trả về danh sách kích thước của các chuỗi bất đẳng thức chưa được giải quyết
+        (những cụm ô có liên kết với nhau bằng dấu < hoặc >, và ít nhất 1 ô trong cạnh đó còn trống).
+        """
+        visited = set()
+        chain_sizes = []
+        
+        for i in range(self.n):
+            for j in range(self.n):
+                if (i, j) not in visited:
+                    # Chỉ bắt đầu loang nếu ô này thực sự dính líu tới một ràng buộc chưa chốt
+                    if self._is_part_of_unresolved_constraint(grid, i, j):
+                        size = self._spread_unresolved(grid, visited, i, j)
+                        if size > 1: # Một chuỗi thì phải có từ 2 ô trở lên
+                            chain_sizes.append(size)
+                            
+        return chain_sizes
+
+    def _is_part_of_unresolved_constraint(self, grid, r, c):
+        """Kiểm tra ô (r, c) có kết nối với ô lân cận bằng ràng buộc mà 1 trong 2 ô là 0 không."""
+        # Left
+        if c > 0 and self.horiz_const[r][c - 1] != 0:
+            if grid[r][c] == 0 or grid[r][c - 1] == 0: return True
+        # Right
+        if c < self.n - 1 and self.horiz_const[r][c] != 0:
+            if grid[r][c] == 0 or grid[r][c + 1] == 0: return True
+        # Top
+        if r > 0 and self.vert_const[r - 1][c] != 0:
+            if grid[r][c] == 0 or grid[r - 1][c] == 0: return True
+        # Bottom
+        if r < self.n - 1 and self.vert_const[r][c] != 0:
+            if grid[r][c] == 0 or grid[r + 1][c] == 0: return True
+            
+        return False
+
+    def _spread_unresolved(self, grid, visited, start_r, start_c):
+        """
+        Dùng BFS loang ra để đếm số lượng ô nằm trong cụm ràng buộc chưa giải quyết.
+        """
+        queue = [(start_r, start_c)]
+        visited.add((start_r, start_c))
+        size = 0
+
+        while queue:
+            r, c = queue.pop(0)
+            size += 1
+
+            # Left
+            if c > 0 and self.horiz_const[r][c - 1] != 0:
+                if (r, c - 1) not in visited and (grid[r][c] == 0 or grid[r][c - 1] == 0):
+                    visited.add((r, c - 1))
+                    queue.append((r, c - 1))
+            # Right
+            if c < self.n - 1 and self.horiz_const[r][c] != 0:
+                if (r, c + 1) not in visited and (grid[r][c] == 0 or grid[r][c + 1] == 0):
+                    visited.add((r, c + 1))
+                    queue.append((r, c + 1))
+            # Top
+            if r > 0 and self.vert_const[r - 1][c] != 0:
+                if (r - 1, c) not in visited and (grid[r][c] == 0 or grid[r - 1][c] == 0):
+                    visited.add((r - 1, c))
+                    queue.append((r - 1, c))
+            # Bottom
+            if r < self.n - 1 and self.vert_const[r][c] != 0:
+                if (r + 1, c) not in visited and (grid[r][c] == 0 or grid[r + 1][c] == 0):
+                    visited.add((r + 1, c))
+                    queue.append((r + 1, c))
+
+        return size
