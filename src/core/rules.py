@@ -3,23 +3,6 @@ class FutoshikiRules:
     Lớp này chịu trách nhiệm kiểm tra tính hợp lệ của một trạng thái lưới (Grid) 
     dựa trên các luật của trò chơi Futoshiki.
     """
-    def __init__(self, n, horizontal_constraints, vertical_constraints):
-        self.n = n
-        self.horiz_const = horizontal_constraints
-        self.vert_const = vertical_constraints
-
-    def is_valid(self, grid):
-        """
-        Kiểm tra xem lưới hiện tại (có thể chưa điền hết) có vi phạm luật nào không.
-        Trả về True nếu hợp lệ (hoặc chưa vi phạm), False nếu sai luật.
-        """
-        if not self._check_uniqueness(grid):
-            return False
-        if not self._check_horizontal_inequalities(grid):
-            return False
-        if not self._check_vertical_inequalities(grid):
-            return False
-        return True
 
     def is_solved(self, grid):
         """
@@ -90,6 +73,23 @@ class FutoshikiRules:
                         return False
                     if const == -1 and not (val_top > val_bot):
                         return False
+        return True
+    def __init__(self, n, horizontal_constraints, vertical_constraints):
+        self.n = n
+        self.horiz_const = horizontal_constraints
+        self.vert_const = vertical_constraints
+
+    def is_valid(self, grid):
+        """
+        Kiểm tra xem lưới hiện tại (có thể chưa điền hết) có vi phạm luật nào không.
+        Trả về True nếu hợp lệ (hoặc chưa vi phạm), False nếu sai luật.
+        """
+        if not self._check_uniqueness(grid):
+            return False
+        if not self._check_horizontal_inequalities(grid):
+            return False
+        if not self._check_vertical_inequalities(grid):
+            return False
         return True
 
     def get_inequality_chain_sizes(self, grid):
