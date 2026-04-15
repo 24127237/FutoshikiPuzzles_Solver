@@ -133,8 +133,24 @@ class State:
         """
         Tạo một bản sao của trạng thái hiện tại (Dùng khi rẽ nhánh trong cây tìm kiếm).
         """
-        new_state = State(self.n, self.grid)
-        new_state.possible_values = copy.deepcopy(self.possible_values)
+        # new_state = State(self.n, self.grid)
+        # new_state.possible_values = copy.deepcopy(self.possible_values)
+
+        # Không dùng copy.deepcopy để tiết kiệm bộ nhớ
+        # Copy grid (List 2D)
+        new_grid = [row[:] for row in self.grid]
+        new_state = State(self.n, new_grid)
+        
+        # Copy possible_values (List 3D)
+        new_possible = []
+        for i in range(self.n):
+            new_row = []
+            for j in range(self.n):
+                # Copy từng list nhỏ chứa domain
+                new_row.append(self.possible_values[i][j][:])
+            new_possible.append(new_row)
+            
+        new_state.possible_values = new_possible
         return new_state
 
     def get_valid_neighbors(self, rules):
@@ -150,7 +166,7 @@ class State:
         row, col = cell
         for val in self.possible_values[row][col]:
             new_state = self.clone()
-            new_state.assign(row, col, val)
+            new_state.assign(row, col, val, rules)
             
             # Kiểm tra trạng thái mới có hợp lệ luật Futoshiki hay không
             if rules.is_valid(new_state.grid):
