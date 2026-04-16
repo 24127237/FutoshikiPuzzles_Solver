@@ -5,73 +5,76 @@ class AstarSolver:
     def __init__(self):
         pass
 
-    def _hashable(self, grid):
-        """Chuyển đổi grid (list of lists) thành tuple of tuples để dùng làm key trong dict."""
-        return tuple(tuple(row) for row in grid)
-
     def heuristic(self, state, rules): # must be admissible
         # Cells with empty domains
         for r in range(state.n):
             for c in range(state.n):
-                if state.grid[r][c] == 0 and len(state.possible_values[r][c]) == 0:
+                if state.grid[r][c] == 0 and state.possible_values[r][c] == 0:
                     return float('inf') # Cắt nhánh ngay lập tức
 
-        # 1. Đếm số ô chưa điền (số 0)
+        # Đếm số ô chưa điền (số 0)
         h1 = len(state.get_empty_cells())
+        return h1
+    
+    def heuristic_2(self, state, rules):
+        # Cells with empty domains
+        for r in range(state.n):
+            for c in range(state.n):
+                if state.grid[r][c] == 0 and state.possible_values[r][c] == 0:
+                    return float('inf') # Cắt nhánh ngay lập tức
         
-        # 2. Tổng kích thước các cụm bất đẳng thức chưa chốt
+        # Tổng kích thước các cụm bất đẳng thức chưa chốt
         ineq_chains = rules.get_inequality_chain_sizes(state.grid)
         h2 = sum(ineq_chains)
+        return h2
 
-        # 3. Degree (Độ thắt chặt ràng buộc)
+    def heuristic_3(self, state, rules):
+        # Cells with empty domains
+        for r in range(state.n):
+            for c in range(state.n):
+                if state.grid[r][c] == 0 and state.possible_values[r][c] == 0:
+                    return float('inf') # Cắt nhánh ngay lập tức
+        
+        # Degree (Độ thắt chặt ràng buộc)
         # Bảng càng bị thắt chặt miền giá trị tổng thể thì càng dễ giải
-        h3 = 0
+        h3, cnt_unfilled = 0, 0
         for r in range(state.n):
             for c in range(state.n):
                 if state.grid[r][c] == 0:
-                    h3 += len(state.possible_values[r][c]) 
+                    h3 += state.possible_values[r][c].bit_count()
+                    cnt_unfilled += 1
         # h3 là tổng số lựa chọn CÒN LẠI trên toàn bàn cờ.
         # h3 CÀNG NHỎ nghĩa là ta đã thu hẹp được rất nhiều lựa chọn (Pruning tốt).
         
-        cnt_unfilled = h1
-        return min(h1, h2, h3 / cnt_unfilled) if cnt_unfilled != 0 else min(h1, h2)
+        return h3 / cnt_unfilled if cnt_unfilled != 0 else h3
 
-    def build_path(self, parents, current_grid_tuple):
+    def build_path(self, goal_state):
         """Tái tạo đường đi từ trạng thái đích ngược về trạng thái ban đầu."""
-        path = [list(list(row) for row in current_grid_tuple)]
-        while current_grid_tuple in parents:
-            current_grid_tuple = parents[current_grid_tuple]
-            if current_grid_tuple is not None:
-                path.append(list(list(row) for row in current_grid_tuple))
+        path = []
+        curr = goal_state
+        while curr is not None:
+            path.append([list(row) for row in curr.grid])
+            curr = getattr(curr, 'parent_state', None)
         return path[::-1] # Trả về đường đi từ trạng thái đầu đến đích
 
     def solve(self, initial_state, rules):
         frontier = PriorityQueue()
         counter = itertools.count() # Dùng làm tie-breaker cho PriorityQueue
         
-        init_grid_tuple = self._hashable(initial_state.grid)
-        
-        # frontier lưu: (f_cost, counter, current_state)
+        # frontier lưu: (f_cost, -g_cost, counter, current_state)
         init_h = self.heuristic(initial_state, rules)
-        frontier.put((init_h, next(counter), initial_state))
+        frontier.put((init_h, 0, next(counter), initial_state))
         
-        # reached lưu chi phí g (cost từ bước đầu đến hiện tại): { grid_tuple : g_cost }
-        reached = {init_grid_tuple: 0}
-        
-        # parents lưu: { current_grid_tuple : parent_grid_tuple }
-        parents = {init_grid_tuple: None}
+        initial_state.parent_state = None
 
         while not frontier.empty():
-            current_f, _, current_state = frontier.get()
-            current_grid_tuple = self._hashable(current_state.grid)
+            current_f, neg_cur_g, _, current_state = frontier.get()
+            cur_g = -neg_cur_g
             
             if rules.is_solved(current_state.grid):
-                return self.build_path(parents, current_grid_tuple)
-                
-            cur_g = reached[current_grid_tuple]
+                return self.build_path(current_state)
 
             for next_state in current_state.get_valid_neighbors(rules):
-                next_grid_tuple = self._hashable(next_state.grid)
                 new_g = cur_g + 1 # Mỗi bước điền 1 số ta tốn chi phí 1 (g)
                 new_h = self.heuristic(next_state, rules)
 
@@ -79,10 +82,8 @@ class AstarSolver:
                     continue
                 
                 new_f = new_g + new_h
-                # Nếu chưa từng đến trạng thái này hoặc tìm được đường g rẻ hơn
-                if next_grid_tuple not in reached or new_g < reached[next_grid_tuple]:
-                    reached[next_grid_tuple] = new_g
-                    frontier.put((new_f, next(counter), next_state))
-                    parents[next_grid_tuple] = current_grid_tuple
+                
+                next_state.parent_state = current_state
+                frontier.put((new_f, -new_g, next(counter), next_state))
                     
         return None

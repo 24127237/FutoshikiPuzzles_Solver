@@ -1,7 +1,6 @@
 # Extreme
 9
-# Grid : N lines of N values separated by commas .
-# 0 = empty cell ; 1..N = pre - filled digit .
+# Grid
 0, 0, 0, 0, 7, 0, 0, 0, 0
 0, 0, 0, 0, 0, 0, 7, 3, 0
 0, 0, 0, 0, 6, 0, 0, 0, 0
@@ -11,7 +10,7 @@
 0, 0, 0, 5, 0, 0, 6, 0, 0
 0, 0, 0, 0, 0, 7, 5, 0, 0
 0, 0, 0, 0, 0, 4, 0, 0, 7
-# Horizontal constraints : one line per row , N -1 values .
+# Horizontal constraints
 # 0 = no constraint , 1 = "<" ( left < right ), -1 = ">" ( left > right )
 0, 1, 0, 0, 0, 0, 0, 0
 1, 0, -1, 0, 0, 1, 0, -1
@@ -22,7 +21,7 @@
 0, 0, 0, 0, 0, -1, -1, 0
 0, 0, 0, 0, 0, 0, 1, 1
 0, 0, 0, 0, 0, 0, 0, 1
-# Vertical constraints : one line per row (N -1 lines ), N values .
+# Vertical constraints
 # 0 = no constraint , 1 = "<" (top < bottom ), -1 = ">" ( top > bottom )
 0, -1, 0, 0, 0, 0, 1, 1, 0
 0, -1, 1, 0, 0, 0, 0, 0, 0
