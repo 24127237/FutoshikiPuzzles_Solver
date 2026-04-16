@@ -37,7 +37,7 @@ def run_test(test_id):
 
     # 2. Khoi tao Rules va State
     rules = FutoshikiRules(n, horiz, vert)
-    initial_state = State(n, grid)
+    initial_state = State(n, grid, rules)
 
     # 3. Chay thuat toan A*
     solver = AstarSolver()
@@ -68,7 +68,7 @@ def main():
     print("  FUTOSHIKI SOLVER - TEST A* ALGORITHM")
     print("=" * 60)
 
-    total = 10
+    total = 12
     passed = 0
     failed = 0
     results = []
