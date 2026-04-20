@@ -16,7 +16,7 @@ from src.core.rules import FutoshikiRules
 
 # Module "Brute-force.py" co dau gach noi nen phai import bang importlib
 import importlib
-brute_force_module = importlib.import_module("src.solver.Brute-force")
+brute_force_module = importlib.import_module("src.solver.Bruteforce")
 BruteForceSolver = brute_force_module.BruteForceSolver
 
 
