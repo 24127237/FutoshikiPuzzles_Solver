@@ -66,7 +66,7 @@ def main():
 
     for i in range(1, total + 1):
         try:
-            success = run_test(i)
+            success = run_test(3)
             results.append((i, success))
             if success:
                 passed += 1

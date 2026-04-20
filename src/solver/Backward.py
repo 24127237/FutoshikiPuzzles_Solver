@@ -207,7 +207,89 @@ def build_query(n, initial_grid, horiz_const, vert_const) -> tuple:
 
     return goals, query_vars
 
+def query_cell(n, r: int, c: int, grid, horiz_const, vert_const) -> list:
+        """
+        Demonstrates querying an individual cell: ?- val(v_r_c, X).
+        Returns a list of all values that satisfy this single goal 
+        based on the base facts in the KB.
+        """
+        # Rebuild KB to ensure fresh state
+        kb = build_kb(n, grid, horiz_const, vert_const)
+        
+        # Create a single query variable and goal
+        qvar = Var("X")
+        goals = [Compound("val", [cell(r, c), qvar])]
+        
+        print(f"?- val(v_{r}_{c}, X).")
 
+        for row in range(n):
+            if row != r and grid[row][c] != 0:
+                given_var = Var(f"Y_{row}_{c}")
+                goals.append(Compound("val", [cell(row, c), given_var]))
+                goals.append(Compound("neq", [qvar, given_var]))
+
+        for col in range(n):
+            if col != c and grid[r][col] != 0:
+                given_var = Var(f"Y_{r}_{col}")
+                goals.append(Compound("val", [cell(r, col), given_var]))
+                goals.append(Compound("neq", [qvar, given_var]))
+
+        # 3. Check Left Constraint
+        if c > 0: 
+            h = horiz_const[r][c - 1]
+            if h != 0: # Only add goals if a constraint exists
+                left_var = Var(f"Y_{r}_{c-1}")
+                goals.append(Compound("val", [cell(r, c - 1), left_var]))
+                if h == 1:
+                    goals.append(Compound("less_than", [left_var, qvar]))
+                elif h == -1:
+                    goals.append(Compound("greater_than", [left_var, qvar]))
+                
+        # 4. Check Right Constraint
+        if c < n - 1:
+            h = horiz_const[r][c]
+            if h != 0:
+                right_var = Var(f"Y_{r}_{c+1}")
+                goals.append(Compound("val", [cell(r, c + 1), right_var]))
+                # Note the order: qvar is on the left of the inequality sign here
+                if h == 1:
+                    goals.append(Compound("less_than", [qvar, right_var]))
+                elif h == -1:
+                    goals.append(Compound("greater_than", [qvar, right_var]))
+                
+        # 5. Check Top Constraint
+        if r > 0:
+            v = vert_const[r - 1][c]
+            if v != 0:
+                top_var = Var(f"Y_{r-1}_{c}")
+                goals.append(Compound("val", [cell(r - 1, c), top_var]))
+                if v == 1:
+                    goals.append(Compound("less_than", [top_var, qvar]))
+                elif v == -1:
+                    goals.append(Compound("greater_than", [top_var, qvar]))
+
+        # 6. Check Bottom Constraint
+        if r < n - 1:
+            v = vert_const[r][c]
+            if v != 0:
+                bottom_var = Var(f"Y_{r+1}_{c}")
+                goals.append(Compound("val", [cell(r + 1, c), bottom_var]))
+                # Note the order: qvar is on the top of the inequality sign here
+                if v == 1:
+                    goals.append(Compound("less_than", [qvar, bottom_var]))
+                elif v == -1:
+                    goals.append(Compound("greater_than", [qvar, bottom_var]))   
+
+        # Resolve the single goal
+        solutions = sld_resolve(goals, {}, kb)
+        
+        possible_values = []
+        for subst in solutions:
+            bound_term = qvar.walk(subst)
+            if isinstance(bound_term, Number) and bound_term.value not in possible_values:
+                possible_values.append(bound_term.value)
+            
+        return possible_values
 # =============================================================================
 # SOLUTION EXTRACTION
 # =============================================================================

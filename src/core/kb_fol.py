@@ -252,7 +252,7 @@ def add_vert_greater(kb: KnowledgeBase):
 def build_kb(n, initial_grid, horiz_const, vert_const) -> KnowledgeBase:
     """
     Populate the KnowledgeBase with:
-      • Structural axiom rules  (Axioms 1a, 2–7)
+      • Structural axiom rules  (Axioms 1a, 2-7)
       • Ground facts for given cells  (Axiom 1a: given/2 facts)
       • Domain facts for free cells   (Axiom 1b: val/2 facts)
       • Constraint facts: lh/gh/lv/gv — ground atoms encoding puzzle layout
@@ -285,10 +285,10 @@ def build_kb(n, initial_grid, horiz_const, vert_const) -> KnowledgeBase:
             h = horiz_const[r][c]
             if h == 1:
                 # LessH(r,c): lh(v_r_c, v_r_{c+1}).
-                kb.add(Fact(Compound("lh", [cell(r, c), cell(r, c + 1)])))
+                kb.add(Fact(Compound("less_than", [cell(r, c), cell(r, c + 1)])))
             elif h == -1:
                 # GreaterH(r,c): gh(v_r_c, v_r_{c+1}).
-                kb.add(Fact(Compound("gh", [cell(r, c), cell(r, c + 1)])))
+                kb.add(Fact(Compound("greater_than", [cell(r, c), cell(r, c + 1)])))
 
     # ── Vertical inequality facts ─────────────────────────────────────────────
     for r in range(n - 1):
@@ -296,10 +296,10 @@ def build_kb(n, initial_grid, horiz_const, vert_const) -> KnowledgeBase:
             v = vert_const[r][c]
             if v == 1:
                 # LessV(r,c): lv(v_r_c, v_{r+1}_c).
-                kb.add(Fact(Compound("lv", [cell(r, c), cell(r + 1, c)])))
+                kb.add(Fact(Compound("less_than", [cell(r, c), cell(r + 1, c)])))
             elif v == -1:
                 # GreaterV(r,c): gv(v_r_c, v_{r+1}_c).
-                kb.add(Fact(Compound("gv", [cell(r, c), cell(r + 1, c)])))
+                kb.add(Fact(Compound("greater_than", [cell(r, c), cell(r + 1, c)])))
 
     return kb
 
