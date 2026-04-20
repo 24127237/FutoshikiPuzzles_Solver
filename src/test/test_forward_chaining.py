@@ -1,6 +1,6 @@
 """
-Test file cho thuat toan A* (Astar).
-Chay tat ca 10 bo test input va ghi ket qua ra file output tuong ung.
+Test file cho thuat toan Forward Chaining.
+Chay tat ca 12 bo test input va ghi ket qua ra file output tuong ung.
 """
 import sys
 import os
@@ -13,16 +13,16 @@ sys.path.insert(0, PROJECT_ROOT)
 from src.core.io_handler import read_input_file, write_output_file
 from src.core.rules import FutoshikiRules
 from src.core.state import State
-from src.solver.Astar import AstarSolver
+from src.solver.ForwardChaining import ForwardChainingSolver
 
 
 def run_test(test_id):
-    """Chay thuat toan A* cho mot bo test cu the."""
+    """Chay thuat toan Forward Chaining cho mot bo test cu the."""
     input_path = os.path.join(PROJECT_ROOT, f"Inputs/inputs-{test_id:02d}.txt")
     output_path = os.path.join(PROJECT_ROOT, f"Outputs/outputs-{test_id:02d}.txt")
 
     print(f"\n{'='*60}")
-    print(f"  Test {test_id:02d} - Thuat toan A*")
+    print(f"  Test {test_id:02d} - Thuat toan Forward Chaining")
     print(f"{'='*60}")
     print(f"  Input : {input_path}")
     print(f"  Output: {output_path}")
@@ -31,7 +31,7 @@ def run_test(test_id):
     n, grid, horiz, vert = read_input_file(input_path)
 
     print(f"  Kich thuoc bang: {n}x{n}")
-    print(f"  Bang ban dau:")
+    print("  Bang ban dau:")
     for row in grid:
         print(f"    {row}")
 
@@ -39,33 +39,32 @@ def run_test(test_id):
     rules = FutoshikiRules(n, horiz, vert)
     initial_state = State(n, grid, rules)
 
-    # 3. Chay thuat toan A*
-    solver = AstarSolver()
-    print(f"\n  Dang giai bang A*...")
-    
+    # 3. Chay thuat toan Forward Chaining
+    solver = ForwardChainingSolver(rules)
+    print("\n  Dang giai bang Forward Chaining...")
+
     start_time = time.time()
-    path = solver.solve(initial_state, rules)
+    solution_grid = solver.solve(initial_state)
     elapsed = time.time() - start_time
 
     # 4. Xu ly ket qua
-    if path:
-        solution_grid = path[-1]  # A* tra ve path, lay grid cuoi cung
-        print(f"  [OK] Giai thanh cong! (Thoi gian: {elapsed:.4f}s, So buoc: {len(path)})")
-        print(f"  Bang ket qua:")
+    if solution_grid:
+        print(f"  [OK] Giai thanh cong! (Thoi gian: {elapsed:.4f}s)")
+        print("  Bang ket qua:")
         for row in solution_grid:
             print(f"    {row}")
 
         # 5. Ghi ket qua ra file output
         write_output_file(output_path, solution_grid, horiz, vert)
         return True
-    else:
-        print(f"  [FAIL] Khong tim thay loi giai! (Thoi gian: {elapsed:.4f}s)")
-        return False
+
+    print(f"  [FAIL] Khong tim thay loi giai! (Thoi gian: {elapsed:.4f}s)")
+    return False
 
 
 def main():
     print("=" * 60)
-    print("  FUTOSHIKI SOLVER - TEST A* ALGORITHM")
+    print("  FUTOSHIKI SOLVER - TEST FORWARD CHAINING ALGORITHM")
     print("=" * 60)
 
     total = 12
@@ -88,15 +87,17 @@ def main():
 
     # Tong ket
     print(f"\n{'='*60}")
-    print(f"  TONG KET - A*")
+    print("  TONG KET - FORWARD CHAINING")
     print(f"{'='*60}")
     print(f"  Tong so test : {total}")
     print(f"  Thanh cong   : {passed}")
     print(f"  That bai     : {failed}")
     print(f"{'='*60}")
+
     for test_id, success in results:
         status = "[OK] PASSED" if success else "[FAIL] FAILED"
         print(f"  Test {test_id:02d}: {status}")
+
     print(f"{'='*60}")
 
 

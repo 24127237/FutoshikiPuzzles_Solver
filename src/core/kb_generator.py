@@ -85,10 +85,24 @@ class FutoshikiKBGenerator:
     def generate_vertical_inequalities(self, vert_const):
         """
         A7: Bất đẳng thức dọc (Trên < Dưới hoặc Trên > Dưới)
-        TODO: Các thành viên trong nhóm hãy implement phần này, logic giống hệt horizontal!
+        Logic CNF giống với bất đẳng thức ngang, nhưng áp dụng cho cặp ô (r, c) và (r + 1, c).
         """
         clauses = []
-        # TODO: Implement loop over rows (n-1) and cols (n)
+        for r in range(self.n - 1):
+            for c in range(self.n):
+                const = vert_const[r][c]
+                if const == 0:
+                    continue
+
+                # Nếu Ô(Trên) = v1, thì Ô(Dưới) phải thuộc tập giá trị hợp lệ.
+                for v1 in range(1, self.n + 1):
+                    valid_bottom_vars = []
+                    for v2 in range(1, self.n + 1):
+                        if (const == 1 and v1 < v2) or (const == -1 and v1 > v2):
+                            valid_bottom_vars.append(self.get_var(r + 1, c, v2))
+
+                    clause = [-self.get_var(r, c, v1)] + valid_bottom_vars
+                    clauses.append(clause)
         return clauses
 
     def generate_full_kb(self, grid, horiz_const, vert_const):

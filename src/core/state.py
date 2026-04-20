@@ -1,98 +1,143 @@
 import copy
+import collections
 
 class State:
     """
     Đại diện cho trạng thái của một bàn cờ Futoshiki tại một thời điểm.
     Được sử dụng chủ yếu cho các thuật toán tìm kiếm (A*, Backtracking).
     """
-    def __init__(self, n, grid):
+    def __init__(self, n, grid, rules=None, skip_init=False):
         self.n = n
-        self.grid = copy.deepcopy(grid) # Deepcopy để không làm hỏng bảng gốc
+        # self.grid = copy.deepcopy(grid) # Deepcopy để không làm hỏng bảng gốc
+        self.grid = [row[:] for row in grid]
         
-        # possible_values[i][j] lưu danh sách các số có thể điền vào ô (i, j)
-        self.possible_values = self._init_possible_values()
+        if not skip_init:
+            mask_all = (2 << self.n) - 2 # Bật các bit từ 1 đến N
+            self.possible_values = [[mask_all] * self.n for _ in range(self.n)]
+            
+            for i in range(self.n):
+                for j in range(self.n):
+                    if self.grid[i][j] != 0:
+                        val = self.grid[i][j]
+                        self.possible_values[i][j] = 1 << val
+                        mask = ~(1 << val)
+                        for k in range(self.n):
+                            if k != j: self.possible_values[i][k] &= mask
+                            if k != i: self.possible_values[k][j] &= mask
 
-    def _init_possible_values(self):
-        """
-        Khởi tạo miền giá trị cho từng ô.
-        Nếu ô đã có số, miền giá trị chỉ chứa số đó.
-        Nếu ô trống (0), miền giá trị ban đầu là [1, 2, ..., N].
-        """
-        domains = []
-        for i in range(self.n):
-            row_domains = []
-            for j in range(self.n):
-                if self.grid[i][j] != 0:
-                    row_domains.append([self.grid[i][j]])
-                else:
-                    row_domains.append(list(range(1, self.n + 1)))
-            domains.append(row_domains)
-        return domains
+            if rules:
+                self._ac3_propagate(rules, None)
 
     def assign(self, row, col, value, rules=None):
         """
-        Điền một số vào ô và tự động cập nhật (thu hẹp) miền giá trị của hàng/cột tương ứng và áp dụng AC3.
+        Điền một số vào ô và tự động cập nhật (thu hẹp) miền giá trị với bitmask và AC3.
+        Trả về False nếu phát hiện vi phạm (domain bị thu hẹp về 0).
         """
         self.grid[row][col] = value
-        self.possible_values[row][col] = [value]
+        self.possible_values[row][col] = 1 << value
         
-        # Xóa 'value' khỏi các ô cùng hàng
-        for j in range(self.n):
-            if j != col and value in self.possible_values[row][j]:
-                self.possible_values[row][j].remove(value)
-                
-        # Xóa 'value' khỏi các ô cùng cột
-        for i in range(self.n):
-            if i != row and value in self.possible_values[i][col]:
-                self.possible_values[i][col].remove(value)
+        changed_cells = [(row, col)]
+        mask = ~(1 << value)
+        # Xóa 'value' khỏi các ô cùng hàng và cùng cột
+        for k in range(self.n):
+            if k != col:
+                old_val, new_val = self.possible_values[row][k], self.possible_values[row][k] & mask
+                if old_val != new_val:
+                    if new_val == 0: return False
+                    self.possible_values[row][k] = new_val
+                    changed_cells.append((row, k))
+            if k != row:
+                old_val, new_val = self.possible_values[k][col], self.possible_values[k][col] & mask
+                if old_val != new_val:
+                    if new_val == 0: return False
+                    self.possible_values[k][col] = new_val
+                    changed_cells.append((k, col))
         
         if rules:
-            self._ac3_propagate(rules)
+            return self._ac3_propagate(rules, changed_cells)
+        return True
 
-    def _ac3_propagate(self, rules):
+    def _ac3_propagate(self, rules, changed_cells=None):
         """
         Propagate constraints using AC3 algorithm.
         Gọt bớt miền giá trị của các ô kề nhau nếu vi phạm dấu < hoặc >.
         """
-        changed = True
-        while changed:
-            changed = False
+        queue = collections.deque()
+        in_queue = set()
+        
+        def add_to_queue(arc):
+            if arc not in in_queue:
+                queue.append(arc)
+                in_queue.add(arc)
+
+        if changed_cells is None:
+            # Lúc init: Nạp toàn bộ các ràng buộc có sẵn vào Queue
             for r in range(self.n):
                 for c in range(self.n):
-                    # Bất đẳng thức ngang
-                    if c < self.n - 1:
-                        const = rules.horiz_const[r][c]
-                        if const == 1:   # Trái < Phải
-                            if self._revise(r, c, r, c + 1): changed = True
-                        elif const == -1: # Trái > Phải
-                            if self._revise(r, c + 1, r, c): changed = True
-                            
-                    # Bất đẳng thức dọc
-                    if r < self.n - 1:
-                        const = rules.vert_const[r][c]
-                        if const == 1:   # Trên < Dưới
-                            if self._revise(r, c, r + 1, c): changed = True
-                        elif const == -1: # Trên > Dưới
-                            if self._revise(r + 1, c, r, c): changed = True
+                    if c < self.n - 1 and rules.horiz_const[r][c] != 0: add_to_queue((r, c, r, c + 1, rules.horiz_const[r][c]))
+                    if r < self.n - 1 and rules.vert_const[r][c] != 0: add_to_queue((r, c, r + 1, c, rules.vert_const[r][c]))
+        else:
+            # Lúc assign: Chỉ cần nạp các ràng buộc liên quan đến ô vừa thay đổi
+            for r, c in changed_cells:
+                # Left
+                if c > 0 and rules.horiz_const[r][c - 1] != 0: add_to_queue((r, c - 1, r, c, rules.horiz_const[r][c - 1]))
+                # Right
+                if c < self.n - 1 and rules.horiz_const[r][c] != 0: add_to_queue((r, c, r, c + 1, rules.horiz_const[r][c]))
+                # Top
+                if r > 0 and rules.vert_const[r - 1][c] != 0: add_to_queue((r - 1, c, r, c, rules.vert_const[r - 1][c]))
+                # Bottom
+                if r < self.n - 1 and rules.vert_const[r][c] != 0: add_to_queue((r, c, r + 1, c, rules.vert_const[r][c]))
+
+        # Vận hành AC-3 chuẩn
+        while queue:
+            arc = queue.popleft()
+            in_queue.remove(arc)
+            r1, c1, r2, c2, const = arc
+
+            revised = False
+            if const == 1:   # Trái/Trên < Phải/Dưới
+                revised = self._revise(r1, c1, r2, c2)
+            elif const == -1: # Trái/Trên > Phải/Dưới
+                revised = self._revise(r2, c2, r1, c1)
+
+            if revised == -1:
+                return False
+
+            if revised:
+                # Nếu _revise làm hẹp domain, nạp lại láng giềng có bất đẳng thức
+                for r, c in [(r1, c1), (r2, c2)]:
+                    # Left
+                    if c > 0 and rules.horiz_const[r][c - 1] != 0: add_to_queue((r, c - 1, r, c, rules.horiz_const[r][c - 1]))
+                    # Right
+                    if c < self.n - 1 and rules.horiz_const[r][c] != 0: add_to_queue((r, c, r, c + 1, rules.horiz_const[r][c]))
+                    # Top
+                    if r > 0 and rules.vert_const[r - 1][c] != 0: add_to_queue((r - 1, c, r, c, rules.vert_const[r - 1][c]))
+                    # Bottom
+                    if r < self.n - 1 and rules.vert_const[r][c] != 0: add_to_queue((r, c, r + 1, c, rules.vert_const[r][c]))
+        return True
 
     def _revise(self, r1, c1, r2, c2):
-        """Xóa giá trị vô lý giữa 2 ô (Ô 1 < Ô 2). Trả về True nếu có domain bị thu hẹp."""
+        """Xóa giá trị vô lý giữa 2 ô (Ô 1 < Ô 2). Trả về True nếu có domain bị thu hẹp bằng Bitmask, -1 nếu vi phạm domain."""
         dom_a, dom_b = self.possible_values[r1][c1], self.possible_values[r2][c2]
-        if not dom_a or not dom_b: return False
+        if not dom_a or not dom_b: return -1
         
         revised = False
-        max_b = max(dom_b)
-        for val in list(dom_a):
-            if val >= max_b:
-                dom_a.remove(val)
-                revised = True
+        max_b = dom_b.bit_length() - 1
+        mask_a = (1 << max_b) - 1
+        new_a = dom_a & mask_a
+        if new_a != dom_a:
+            self.possible_values[r1][c1] = new_a
+            if new_a == 0: return -1
+            revised = True
                 
-        if dom_a:
-            min_a = min(dom_a)
-            for val in list(dom_b):
-                if val <= min_a:
-                    dom_b.remove(val)
-                    revised = True
+        if new_a:
+            min_a = (new_a & -new_a).bit_length() - 1
+            mask_b = ~((1 << (min_a + 1)) - 1)
+            new_b = dom_b & mask_b
+            if new_b != dom_b:
+                self.possible_values[r2][c2] = new_b
+                if new_b == 0: return -1
+                revised = True
         return revised
 
     def get_empty_cells(self):
@@ -108,10 +153,7 @@ class State:
 
     def get_mrv_cell(self):
         """
-        Minimum Remaining Values (MRV) Heuristic.
-        Tìm ô trống có số lượng 'possible_values' ít nhất.
-        Rất hữu ích để chọn ô điền tiếp theo trong A* hoặc Backtracking.
-        Trả về: (row, col) hoặc None nếu bảng đã đầy.
+        Minimum Remaining Values (MRV) Heuristic bằng Bitmask.
         """
         min_len = self.n + 1
         best_cell = None
@@ -119,41 +161,38 @@ class State:
         for i in range(self.n):
             for j in range(self.n):
                 if self.grid[i][j] == 0:
-                    curr_len = len(self.possible_values[i][j])
+                    curr_len = self.possible_values[i][j].bit_count()
                     if curr_len < min_len:
                         min_len = curr_len
                         best_cell = (i, j)
-                        # Nếu tìm thấy ô chỉ còn 1 khả năng, chốt luôn không cần tìm thêm
                         if min_len == 1:
                             return best_cell
-                            
         return best_cell
 
     def clone(self):
         """
-        Tạo một bản sao của trạng thái hiện tại (Dùng khi rẽ nhánh trong cây tìm kiếm).
+        Tạo một bản sao của trạng thái hiện tại cực kỳ tĩnh và siêu tốc qua mảng 2D.
         """
-        new_state = State(self.n, self.grid)
-        new_state.possible_values = copy.deepcopy(self.possible_values)
+        new_grid = [row[:] for row in self.grid]
+        new_state = State(self.n, new_grid, skip_init=True)
+        new_state.possible_values = [row[:] for row in self.possible_values]
         return new_state
 
     def get_valid_neighbors(self, rules):
         """
         Sinh ra các trạng thái (nhánh) tiếp theo hợp lệ từ trạng thái hiện tại.
-        Sử dụng MRV Heuristic để chọn ô điền tiếp theo.
         """
         neighbors = []
         cell = self.get_mrv_cell()
         if not cell:
-            return neighbors # Bảng đã đầy hoặc không còn lựa chọn
+            return neighbors
             
         row, col = cell
-        for val in self.possible_values[row][col]:
-            new_state = self.clone()
-            new_state.assign(row, col, val)
-            
-            # Kiểm tra trạng thái mới có hợp lệ luật Futoshiki hay không
-            if rules.is_valid(new_state.grid):
-                neighbors.append(new_state)
-                
+        dom = self.possible_values[row][col]
+        for val in range(1, self.n + 1):
+            if dom & (1 << val):
+                new_state = self.clone()
+                is_ok = new_state.assign(row, col, val, rules)
+                if is_ok:
+                    neighbors.append(new_state)
         return neighbors
