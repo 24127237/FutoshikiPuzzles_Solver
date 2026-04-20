@@ -16,7 +16,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 
 from src.core.io_handler import read_input_file, write_output_file
-from src.core.fol import FutoshikiKB
+
 from src.solver.Backward import BackwardSolver
 
 def run_test(test_id):
@@ -27,15 +27,14 @@ def run_test(test_id):
     n, grid, horiz, vert = read_input_file(input_path)
 
     # 2. Initialize Rules and the BackwardSolver
-    kb = FutoshikiKB(n, grid, horiz, vert)
-    kb.build_kb()
-    solver = BackwardSolver(n, kb)
+
+    solver = BackwardSolver(n, horiz, vert)
     
 # 3. Chạy thuật toán Backward Chaining
     print(f"\n  Đang giải bằng Backward Chaining...")
     
     start_time = time.time()
-    solution_grid = solver.solve()
+    solution_grid = solver.solve(grid)
     elapsed = time.time() - start_time
 
     # 4. Xử lý kết quả và in ra terminal
