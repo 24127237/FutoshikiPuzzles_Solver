@@ -6,7 +6,8 @@ from src.core.kb_generator import FutoshikiKBGenerator
 class ForwardChainingSolver:
     """
     Rule-based forward chaining for Futoshiki.
-    The solver repeatedly infers forced values, then falls back to DFS when needed.
+    The solver uses pure forward chaining (Modus Ponens + domain propagation)
+    until reaching a fixpoint.
     """
 
     def __init__(self, rules):
@@ -28,38 +29,9 @@ class ForwardChainingSolver:
         if not self._forward_chain(state):
             return None
 
-        if self.rules.is_solved(state.grid):
-            return state.grid
-
-        result = self._search(state)
-        if result is None:
+        if not self.rules.is_solved(state.grid):
             return None
-        return result.grid
-
-    def _search(self, state):
-        if self.rules.is_solved(state.grid):
-            return state
-
-        cell = state.get_mrv_cell()
-        if cell is None:
-            return state if self.rules.is_solved(state.grid) else None
-
-        row, col = cell
-        domain = state.possible_values[row][col]
-
-        for value in self._iter_domain_values(domain, state.n):
-            next_state = state.clone()
-            if not next_state.assign(row, col, value, self.rules):
-                continue
-
-            if not self._forward_chain(next_state):
-                continue
-
-            result = self._search(next_state)
-            if result is not None:
-                return result
-
-        return None
+        return state.grid
 
     def _forward_chain(self, state):
         """
