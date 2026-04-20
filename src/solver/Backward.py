@@ -1,56 +1,53 @@
-from src.core.rules import FutoshikiRules as rules_base
+from src.core.fol import FutoshikiKB
 class BackwardSolver:
-    def __init__(self, n, rules_base):
+    def __init__(self, n, knowledge_base: FutoshikiKB):
         self.n = n
-        self.rules = rules_base
+        self.kb = knowledge_base
         self.grid = None
-    def query_cell(self, r, c, val):
-        """
-        The 'Query' part: Can we prove Val(r, c, val)?
-        This checks if the proposed 'fact' unifies with our Axioms.
-        """
-        # Step 1: Temporarily assert the fact into the knowledge base (the grid)
-        self.grid[r][c] = val
-        
-        # Step 2: Ask the Oracle (rules.py) if this new universe is valid
-        is_ok = self.rules.is_valid(self.grid)
-        
-        # Step 3: Retract the temporary fact so we don't mess up the board state
-        self.grid[r][c] = 0
 
-        return is_ok
+    def sld_resolve(self, goals, substitution):
+        """
+        Depth-first SLD resolution (backward chaining).
+        Base case  — empty goals ⟹ substitution is a solution.
+        Inductive  — prove first goal, recurse on rest under new substitution.
+        """
+        if not goals:
+            yield substitution
+            return
 
-    def solve(self, grid):
+        first_goal = goals[0]
+        rest_goals = goals[1:]
+
+        for new_sub in first_goal.evaluate(substitution):
+            yield from self.sld_resolve(rest_goals, new_sub)
+
+    def solve(self):
         """
-        The SLD Resolution engine: 
-        Proving the goal by resolving sub-goals (empty cells) one by one.
+        Run SLD resolution over kb.predicates and store the first solution
+        in self.grid.
+
+        Returns
+        -------
+        list[list[int]] | None
+            The solved grid, or None if no solution exists.
         """
-        self.grid = grid
-        for r in range(self.n):
-            for c in range(self.n):
-                if self.grid[r][c] == 0: # Found a sub-goal
-                    for v in range(1, self.n + 1):
-                        
-                        if self.n <= 5:
-                            print(f"  ?- Query: Can we prove Val({r}, {c}, {v})?")
-                            
-                        # Attempt to prove Val(r, c, v)
-                        if self.query_cell(r, c, v):
-                            self.grid[r][c] = v # Unify 
-                            
-                            if self.n <= 5:
-                                print(f"  -> YES: Val({r}, {c}, {v}) is locally valid.")
-                            
-                            # Recursively prove the next sub-goal
-                            if self.solve(self.grid):
-                                if self.n <= 5:
-                                    print(f"  => PROVEN: Val({r}, {c}, {v}) is part of the final solution!")
-                                return self.grid
-                            
-                            # Refutation: This choice leads to False, backtrack
-                            self.grid[r][c] = 0
-                            if self.n <= 5:
-                                print(f"  <- BACKTRACK: Val({r}, {c}, {v}) led to a dead end.")
-                                
-                    return None # Trigger backtrack to previous cell
-        return self.grid
+        solutions = self.sld_resolve(self.kb.predicates, {})
+
+        try:
+            final_sub = next(solutions)
+            self.grid = [
+                [final_sub[self.kb.variables[(r, c)].name]
+                 for c in range(self.n)]
+                for r in range(self.n)
+            ]
+            return self.grid
+        except StopIteration:
+            self.grid = None
+            return None
+
+    def query_cell(self, substitution, r, c):
+        """
+        Read the value assigned to cell (r,c) from a substitution dict.
+        """
+        var_name = self.kb.variables[(r, c)].name
+        return substitution.get(var_name)
