@@ -5,8 +5,8 @@ Implements unification, SLD resolution (Prolog's execution model),
 query generation, and solution extraction.
 """
 
-from src.core.FOL import Term, Atom, Number, Var, Compound
-from src.core.kb_fol import KnowledgeBase, build_kb, cell, Fact, Rule
+from src.core.fol_types import Term, Atom, Number, Var, Compound
+from src.core.fol_kb import KnowledgeBase, build_kb, cell, Fact, Rule
 
 
 # =============================================================================

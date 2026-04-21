@@ -19,7 +19,7 @@ Predicate vocabulary (from the assignment):
   gv(C1,C2)             — GreaterV: val(C1)>val(C2) vertical    [Axiom 7]
 """
 
-from src.core.FOL import Atom, Number, Var, Compound
+from src.core.fol_types import Atom, Number, Var, Compound
 
 
 class Fact:

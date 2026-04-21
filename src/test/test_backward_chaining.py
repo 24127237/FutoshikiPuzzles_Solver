@@ -59,14 +59,14 @@ def main():
     print("  FUTOSHIKI SOLVER - TEST BACKWARD CHAINING ALGORITHM")
     print("=" * 60)
 
-    total = 1
+    total = 12
     passed = 0
     failed = 0
     results = []
 
     for i in range(1, total + 1):
         try:
-            success = run_test(3)
+            success = run_test(i)
             results.append((i, success))
             if success:
                 passed += 1

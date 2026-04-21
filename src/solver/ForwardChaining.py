@@ -1,6 +1,6 @@
 from collections import defaultdict, deque
 
-from src.core.kb_generator import FutoshikiKBGenerator
+from src.core.prop_kb_generator import FutoshikiKBGenerator
 
 
 class ForwardChainingSolver:
