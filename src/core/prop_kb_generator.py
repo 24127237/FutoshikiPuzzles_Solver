@@ -10,6 +10,17 @@ class FutoshikiKBGenerator:
         # Công thức tính ID biến. Trả về ID từ 1 đến N^3
         return r * (self.n * self.n) + c * self.n + v
 
+    def decode_var(self, var_id):
+        """
+        Giải mã ID biến propositional về (row, col, value).
+        """
+        idx = var_id - 1
+        r = idx // (self.n * self.n)
+        rem = idx % (self.n * self.n)
+        c = rem // self.n
+        v = (rem % self.n) + 1
+        return r, c, v
+
     def generate_cell_constraints(self):
         """
         A1 & A2: Ràng buộc mỗi ô chứa ĐÚNG MỘT giá trị từ 1 đến N.
@@ -117,3 +128,98 @@ class FutoshikiKBGenerator:
         kb.extend(self.generate_vertical_inequalities(vert_const))
         
         return kb
+
+    def generate_horn_facts_from_grid(self, grid):
+        """
+        Ground facts cho Horn KB từ các ô đã cho sẵn.
+        Mỗi fact là một literal dương Val(r,c,v).
+        """
+        facts = set()
+        for r in range(self.n):
+            for c in range(self.n):
+                val = grid[r][c]
+                if val != 0:
+                    facts.add(self.get_var(r, c, val))
+        return facts
+
+    def generate_horn_rules(self, horiz_const, vert_const):
+        """
+        Sinh Horn rules dạng (body_literals, head_literal).
+
+        Quy ước literal:
+        - +X(r,c,v): ô (r,c) có giá trị v
+        - -X(r,c,v): ô (r,c) KHÔNG có giá trị v
+
+        Mỗi rule là một tuple (body, head), trong đó:
+        - body: tuple các literal phải đúng
+        - head: literal suy ra theo Modus Ponens
+        """
+        rules = []
+
+        def add_rule(body, head):
+            rules.append((tuple(body), head))
+
+        # R1: Nếu ô có giá trị v thì ô đó không thể nhận giá trị khác v.
+        for r in range(self.n):
+            for c in range(self.n):
+                for v in range(1, self.n + 1):
+                    var_v = self.get_var(r, c, v)
+                    for u in range(1, self.n + 1):
+                        if u == v:
+                            continue
+                        add_rule((var_v,), -self.get_var(r, c, u))
+
+        # R2: Tính duy nhất theo hàng/cột (A3/A4) dưới dạng Horn implication.
+        for v in range(1, self.n + 1):
+            for r in range(self.n):
+                for c1 in range(self.n):
+                    for c2 in range(self.n):
+                        if c1 != c2:
+                            add_rule((self.get_var(r, c1, v),), -self.get_var(r, c2, v))
+
+            for c in range(self.n):
+                for r1 in range(self.n):
+                    for r2 in range(self.n):
+                        if r1 != r2:
+                            add_rule((self.get_var(r1, c, v),), -self.get_var(r2, c, v))
+
+        # R3: Bất đẳng thức ngang/dọc -> loại bỏ giá trị không hợp lệ ở ô kề.
+        for r in range(self.n):
+            for c in range(self.n - 1):
+                const = horiz_const[r][c]
+                if const == 0:
+                    continue
+
+                for v_left in range(1, self.n + 1):
+                    left_var = self.get_var(r, c, v_left)
+                    for v_right in range(1, self.n + 1):
+                        right_var = self.get_var(r, c + 1, v_right)
+                        is_valid = (const == 1 and v_left < v_right) or (const == -1 and v_left > v_right)
+                        if not is_valid:
+                            add_rule((left_var,), -right_var)
+                            add_rule((right_var,), -left_var)
+
+        for r in range(self.n - 1):
+            for c in range(self.n):
+                const = vert_const[r][c]
+                if const == 0:
+                    continue
+
+                for v_top in range(1, self.n + 1):
+                    top_var = self.get_var(r, c, v_top)
+                    for v_bottom in range(1, self.n + 1):
+                        bottom_var = self.get_var(r + 1, c, v_bottom)
+                        is_valid = (const == 1 and v_top < v_bottom) or (const == -1 and v_top > v_bottom)
+                        if not is_valid:
+                            add_rule((top_var,), -bottom_var)
+                            add_rule((bottom_var,), -top_var)
+
+        return rules
+
+    def generate_horn_kb(self, grid, horiz_const, vert_const):
+        """
+        Sinh Horn KB đầy đủ gồm facts + rules để dùng cho forward chaining (Modus Ponens).
+        """
+        facts = self.generate_horn_facts_from_grid(grid)
+        rules = self.generate_horn_rules(horiz_const, vert_const)
+        return facts, rules
