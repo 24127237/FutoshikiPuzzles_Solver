@@ -15,8 +15,10 @@ class ForwardChainingSolver:
         self.kb_generator = FutoshikiKBGenerator(self.rules.n)
         self.horn_rules = []
         self.rules_by_premise = {}
+        self.stats = {"num_inferences": 0, "fc_iterations": 0}
 
     def solve(self, initial_state):
+        self.stats = {"num_inferences": 0, "fc_iterations": 0}
         state = initial_state.clone()
 
         # Build Horn KB once per puzzle. Inference will run as Modus Ponens over this KB.
@@ -38,6 +40,7 @@ class ForwardChainingSolver:
         Forward chaining via Modus Ponens on Horn KB until fixpoint.
         """
         while True:
+            self.stats["fc_iterations"] += 1
             if not self._check_non_empty_domains(state):
                 return False
 
@@ -130,6 +133,7 @@ class ForwardChainingSolver:
                     return inferred, False
                 if head not in inferred:
                     inferred.add(head)
+                    self.stats["num_inferences"] += 1
                     agenda.append(head)
 
         return inferred, True

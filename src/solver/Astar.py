@@ -3,7 +3,7 @@ import itertools
 
 class AstarSolver:
     def __init__(self):
-        pass
+        self.stats = {"num_expansions": 0}
 
     def heuristic(self, state, rules): # must be admissible
         # Cells with empty domains
@@ -58,6 +58,7 @@ class AstarSolver:
         return path[::-1] # Trả về đường đi từ trạng thái đầu đến đích
 
     def solve(self, initial_state, rules):
+        self.stats = {"num_expansions": 0}
         frontier = PriorityQueue()
         counter = itertools.count() # Dùng làm tie-breaker cho PriorityQueue
         
@@ -69,6 +70,7 @@ class AstarSolver:
 
         while not frontier.empty():
             current_f, neg_cur_g, _, current_state = frontier.get()
+            self.stats["num_expansions"] += 1
             cur_g = -neg_cur_g
             
             if rules.is_solved(current_state.grid):

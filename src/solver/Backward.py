@@ -84,7 +84,7 @@ def unify(t1: Term, t2: Term, subst: dict):
 # SLD RESOLUTION ENGINE
 # =============================================================================
 
-def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase):
+def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase, stats: dict = None):
     """
     Depth-first SLD resolution engine — Prolog's execution model.
 
@@ -110,6 +110,8 @@ def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase):
 
     goal      = goals[0]
     rest      = goals[1:]
+    if stats is not None:
+        stats["num_goal_expansions"] = stats.get("num_goal_expansions", 0) + 1
 
     # --- built-in arithmetic guards (not stored in KB) ---
     if isinstance(goal, Compound):
@@ -120,7 +122,7 @@ def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase):
             b = goal.args[1].walk(subst)
             if isinstance(a, Number) and isinstance(b, Number):
                 if a.value < b.value:
-                    yield from sld_resolve(rest, subst, kb)
+                    yield from sld_resolve(rest, subst, kb, stats)
             return
 
         if goal.functor == "greater_than" and len(goal.args) == 2:
@@ -129,7 +131,7 @@ def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase):
             b = goal.args[1].walk(subst)
             if isinstance(a, Number) and isinstance(b, Number):
                 if a.value > b.value:
-                    yield from sld_resolve(rest, subst, kb)
+                    yield from sld_resolve(rest, subst, kb, stats)
             return
 
         if goal.functor == "neq" and len(goal.args) == 2:
@@ -137,7 +139,7 @@ def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase):
             a = goal.args[0].walk(subst)
             b = goal.args[1].walk(subst)
             if a != b:
-                yield from sld_resolve(rest, subst, kb)
+                yield from sld_resolve(rest, subst, kb, stats)
             return
 
     # --- KB lookup: resolve goal against stored Horn clauses ---
@@ -148,10 +150,12 @@ def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase):
         new_sub = unify(goal, fresh.head, subst)
         if new_sub is None:
             continue                    # head didn't unify — backtrack
+        if stats is not None:
+            stats["num_inferences"] = stats.get("num_inferences", 0) + 1
 
         # Prepend clause body to remaining goals
         new_goals = (fresh.body if isinstance(fresh, Rule) else []) + rest
-        yield from sld_resolve(new_goals, new_sub, kb)
+        yield from sld_resolve(new_goals, new_sub, kb, stats)
 
 
 # =============================================================================
@@ -322,18 +326,20 @@ class BackwardSolver:
         self.n = n
         self.horiz_const = horiz_const
         self.vert_const = vert_const
+        self.stats = {"num_inferences": 0, "num_goal_expansions": 0}
 
     def solve(self, grid):
         """
         Solve the puzzle using SLD resolution.
         Returns the solution grid as a list of lists, or None if no solution.
         """
+        self.stats = {"num_inferences": 0, "num_goal_expansions": 0}
         # Build KB and query
         kb = build_kb(self.n, grid, self.horiz_const, self.vert_const)
         goals, query_vars = build_query(self.n, grid, self.horiz_const, self.vert_const)
 
         # SLD resolution — take first solution
-        solutions = sld_resolve(goals, {}, kb)
+        solutions = sld_resolve(goals, {}, kb, self.stats)
 
         try:
             final_subst = next(solutions)
