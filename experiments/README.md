@@ -21,7 +21,7 @@ Running the script generates:
 From project root:
 
 ```powershell
-uv run .\experiments\run_experiments.py --repeats 3 --timeout 60
+uv run .\experiments\run_experiments.py --repeats 3 --timeout 60 --jobs -1
 ```
 
 ## Kaggle run
@@ -31,7 +31,7 @@ uv run .\experiments\run_experiments.py --repeats 3 --timeout 60
 3. Run:
 
 ```python
-!python experiments/run_experiments.py --repeats 3 --timeout 60
+!python experiments/run_experiments.py --repeats 3 --timeout 60 --jobs -1
 ```
 
 4. Collect files in `experiments/results` for submission/report.
@@ -39,6 +39,7 @@ uv run .\experiments\run_experiments.py --repeats 3 --timeout 60
 ## Notes
 
 - `--timeout` is per algorithm per input per repeat.
+- `--jobs` controls parallel workers for joblib (`-1` means all cores).
 - If timeout happens, result is recorded with `status=timeout` and still included in summary.
 - Memory is measured with `tracemalloc` peak memory in KB.
 - For fallback modes, detailed CSV includes:

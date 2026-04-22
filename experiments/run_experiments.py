@@ -8,6 +8,8 @@ import time
 import tracemalloc
 from pathlib import Path
 
+from joblib import Parallel, delayed
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -435,6 +437,12 @@ def main():
     parser.add_argument("--repeats", type=int, default=3, help="Runs per algorithm per input")
     parser.add_argument("--timeout", type=int, default=60, help="Timeout seconds per single run")
     parser.add_argument(
+        "--jobs",
+        type=int,
+        default=-1,
+        help="Number of parallel workers for joblib (-1 uses all cores)",
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default=str(PROJECT_ROOT / "experiments" / "results"),
@@ -480,21 +488,30 @@ def main():
 
     rows = []
     print(f"[INFO] Found {len(input_files)} input files")
-    print(f"[INFO] Repeats={args.repeats}, timeout={args.timeout}s")
+    print(f"[INFO] Repeats={args.repeats}, timeout={args.timeout}s, jobs={args.jobs}")
 
+    tasks = []
     for input_path in input_files:
         input_id = input_path.stem.split("-")[-1]
         difficulty = detect_difficulty(input_path)
-
         for algorithm in ALGORITHMS:
             for run_id in range(1, args.repeats + 1):
-                print(f"[RUN] input={input_path.name}, algo={algorithm}, repeat={run_id}")
-                row = run_with_timeout(algorithm, input_path, args.timeout)
-                row["input_file"] = input_path.name
-                row["input_id"] = input_id
-                row["difficulty"] = difficulty
-                row["repeat_id"] = run_id
-                rows.append(row)
+                tasks.append((input_path, input_id, difficulty, algorithm, run_id))
+
+    def execute_task(task):
+        input_path, input_id, difficulty, algorithm, run_id = task
+        print(f"[RUN] input={input_path.name}, algo={algorithm}, repeat={run_id}")
+        row = run_with_timeout(algorithm, input_path, args.timeout)
+        row["input_file"] = input_path.name
+        row["input_id"] = input_id
+        row["difficulty"] = difficulty
+        row["repeat_id"] = run_id
+        return row
+
+    # Use joblib to run experiment tasks in parallel.
+    rows = Parallel(n_jobs=args.jobs, backend="threading", batch_size=1)(
+        delayed(execute_task)(task) for task in tasks
+    )
 
     detailed_fields = [
         "input_file",
