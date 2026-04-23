@@ -9,7 +9,7 @@ from src.core.state import State
 from src.solver.Astar import AstarSolver
 from src.solver.Backtracking import BacktrackingSolver
 from src.solver.Bruteforce import BruteForceSolver
-from src.solver.ForwardChaining import ForwardChainingSolver
+from src.solver.FCHybrid import FCHybridSolver
 
 class FutoshikiGUI:
     def __init__(self, root):
@@ -178,7 +178,7 @@ class FutoshikiGUI:
             elif algo_choice == "A* Search":
                 solver = AstarSolver()
             else:
-                solver = ForwardChainingSolver(rules)
+                solver = FCHybridSolver(rules)
 
             # 1. Chuẩn bị giao diện trước khi chạy
             self.solve_btn.config(state=tk.DISABLED) # Khóa nút Solve
@@ -236,4 +236,4 @@ class FutoshikiGUI:
             else:
                 self.status_var.set("No solution.")
                 messagebox.showinfo("Result", "Không tìm thấy lời giải.")
-
+

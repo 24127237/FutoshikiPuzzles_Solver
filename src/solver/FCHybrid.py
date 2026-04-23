@@ -3,7 +3,7 @@ from collections import defaultdict, deque
 from src.core.prop_kb_generator import FutoshikiKBGenerator
 
 
-class ForwardChainingSolver:
+class FCHybridSolver:
     """
     Rule-based forward chaining for Futoshiki.
     The solver uses pure forward chaining (Modus Ponens + domain propagation)

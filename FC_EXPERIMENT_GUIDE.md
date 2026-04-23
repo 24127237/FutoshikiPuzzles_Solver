@@ -40,7 +40,7 @@ Tai lieu nay huong dan:
 ## 3. Cach instrument code (khuyen nghi)
 
 ## 3.1 FC (Forward Chaining)
-File lien quan: `src/solver/ForwardChaining.py`
+File lien quan: `src/solver/FCHybrid.py`
 
 Can them bo dem thong ke:
 - `self.stats = {"num_inferences": 0, "fc_iterations": 0}`

@@ -31,7 +31,7 @@ Implemented Horn rule groups:
 
 ### 2. Reworked forward chaining to use Modus Ponens over Horn KB
 
-File: [src/solver/ForwardChaining.py](src/solver/ForwardChaining.py)
+File: [src/solver/FCHybrid.py](src/solver/FCHybrid.py)
 
 Changes:
 - Replaced hardcoded rule-propagation flow with Horn-KB-based inference.
@@ -62,4 +62,4 @@ The code was simplified while preserving behavior:
 ## Files Modified
 
 - [src/core/kb_generator.py](src/core/kb_generator.py)
-- [src/solver/ForwardChaining.py](src/solver/ForwardChaining.py)
+- [src/solver/FCHybrid.py](src/solver/FCHybrid.py)

@@ -20,7 +20,7 @@ from src.core.state import State
 from src.solver.Astar import AstarSolver
 from src.solver.Backtracking import BacktrackingSolver
 from src.solver.PureBackwardChaining import BackwardSolver
-from src.solver.ForwardChaining import ForwardChainingSolver
+from src.solver.FCHybrid import FCHybridSolver
 
 ALGORITHMS = [
     "forward_chaining",
@@ -32,7 +32,7 @@ ALGORITHMS = [
 ]
 
 
-def run_fc_pruning(fc_solver: ForwardChainingSolver, state: State) -> bool:
+def run_fc_pruning(fc_solver: FCHybridSolver, state: State) -> bool:
     """Run FC inference to fixpoint directly on the provided state.
 
     Returns True if the state remains consistent after FC propagation,
@@ -80,13 +80,13 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
     fc_iterations = None
 
     if algorithm == "forward_chaining":
-        solver = ForwardChainingSolver(rules)
+        solver = FCHybridSolver(rules)
         result_grid = solver.solve(State(n, grid, rules))
         stats = dict(getattr(solver, "stats", {}))
         fc_inferences = stats.get("num_inferences")
         fc_iterations = stats.get("fc_iterations")
     elif algorithm == "forward_chaining_fallback_astar":
-        fc_solver = ForwardChainingSolver(rules)
+        fc_solver = FCHybridSolver(rules)
         pruned_state = State(n, grid, rules)
         fc_consistent = run_fc_pruning(fc_solver, pruned_state)
         fc_stats = dict(getattr(fc_solver, "stats", {}))
@@ -119,7 +119,7 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
                 "fc_iterations": fc_iterations,
             }
     elif algorithm == "forward_chaining_fallback_backtracking":
-        fc_solver = ForwardChainingSolver(rules)
+        fc_solver = FCHybridSolver(rules)
         initial_state = State(n, grid, rules)
         result_grid = fc_solver.solve(initial_state)
         fc_stats = dict(getattr(fc_solver, "stats", {}))

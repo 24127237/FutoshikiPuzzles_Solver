@@ -13,7 +13,7 @@ sys.path.insert(0, PROJECT_ROOT)
 from src.core.io_handler import read_input_file, write_output_file
 from src.core.rules import FutoshikiRules
 from src.core.state import State
-from src.solver.ForwardChaining import ForwardChainingSolver
+from src.solver.FCHybrid import FCHybridSolver
 
 
 def run_test(test_id):
@@ -40,7 +40,7 @@ def run_test(test_id):
     initial_state = State(n, grid, rules)
 
     # 3. Chay thuat toan Forward Chaining
-    solver = ForwardChainingSolver(rules)
+    solver = FCHybridSolver(rules)
     print("\n  Dang giai bang Forward Chaining...")
 
     start_time = time.time()
