@@ -71,13 +71,19 @@ class FutoshikiGUI:
     def setup_displays(self):
         # Cột trái: Initial State
         tk.Label(self.display_frame, text="Initial State", font=("Arial", 11, "bold")).grid(row=0, column=0, sticky="w")
-        self.txt_input = tk.Text(self.display_frame, font=("Courier New", 12), bg="#f8f9fa", height=10)
-        self.txt_input.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
+        self.canvas_input = tk.Canvas(self.display_frame, bg="#f8f9fa", highlightthickness=1, highlightbackground="gray")
+        self.canvas_input.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
+        # Ràng buộc sự kiện Configure để vẽ lại khi thay đổi kích thước
+        self.canvas_input.bind("<Configure>", lambda e: self.redraw_input())
 
         # Cột phải: Solved State
         tk.Label(self.display_frame, text="Solved State", font=("Arial", 11, "bold")).grid(row=0, column=1, sticky="w")
-        self.txt_output = tk.Text(self.display_frame, font=("Courier New", 12), bg="#e8f5e9", height=10)
-        self.txt_output.grid(row=1, column=1, sticky="nsew", padx=(5, 0))
+        self.canvas_output = tk.Canvas(self.display_frame, bg="#e8f5e9", highlightthickness=1, highlightbackground="gray")
+        self.canvas_output.grid(row=1, column=1, sticky="nsew", padx=(5, 0))
+        self.canvas_output.bind("<Configure>", lambda e: self.redraw_output())
+        
+        self.current_puzzle = None
+        self.current_result = None
 
     def get_input_files(self):
         input_dir = "Inputs"
@@ -90,39 +96,68 @@ class FutoshikiGUI:
         filepath = os.path.join("Inputs", filename)
         try:
             n, grid, h_const, v_const = read_input_file(filepath)
-            formatted_str = self.format_grid_to_string(n, grid, h_const, v_const)
+            self.current_puzzle = (n, grid, h_const, v_const)
+            self.current_result = None
             
-            self.txt_input.config(state=tk.NORMAL)
-            self.txt_input.delete(1.0, tk.END)
-            self.txt_input.insert(tk.END, formatted_str)
-            self.txt_input.config(state=tk.DISABLED)
+            self.redraw_input()
+            self.canvas_output.delete("all")
             
-            self.txt_output.config(state=tk.NORMAL)
-            self.txt_output.delete(1.0, tk.END)
-            self.txt_output.config(state=tk.DISABLED)
             self.status_var.set(f"Loaded: {filename}")
         except Exception as e:
             messagebox.showerror("Error", f"Could not read file: {e}")
 
-    def format_grid_to_string(self, n, grid, horiz_const, vert_const):
-        lines = []
+    def redraw_input(self):
+        if hasattr(self, 'current_puzzle') and self.current_puzzle:
+            self.draw_grid_on_canvas(self.canvas_input, *self.current_puzzle, is_result=False)
+            
+    def redraw_output(self):
+        if hasattr(self, 'current_result') and self.current_result and hasattr(self, 'current_puzzle'):
+            n, _, h_const, v_const = self.current_puzzle
+            self.draw_grid_on_canvas(self.canvas_output, n, self.current_result, h_const, v_const, is_result=True)
+
+    def draw_grid_on_canvas(self, canvas, n, grid, h_const, v_const, is_result=False):
+        canvas.delete("all")
+        if n == 0: return
+        
+        canvas.update_idletasks()
+        c_width = canvas.winfo_width()
+        c_height = canvas.winfo_height()
+        
+        if c_width < 10 or c_height < 10:
+            c_width, c_height = 400, 400
+
+        margin = 20
+        cell_size = min((c_width - 2*margin) / (n + (n-1)*0.5), (c_height - 2*margin) / (n + (n-1)*0.5))
+        if cell_size <= 0: cell_size = 30
+        
+        spacing = cell_size * 0.5
+        
+        start_x = (c_width - (n * cell_size + (n-1) * spacing)) / 2
+        start_y = (c_height - (n * cell_size + (n-1) * spacing)) / 2
+        
         for i in range(n):
-            row_str = ""
             for j in range(n):
-                val = str(grid[i][j]) if grid[i][j] != 0 else "."
-                row_str += val
+                x = start_x + j * (cell_size + spacing)
+                y = start_y + i * (cell_size + spacing)
+                
+                val = grid[i][j]
+                bg_color = "white" if val == 0 else ("#c8e6c9" if is_result else "#bbdefb")
+                canvas.create_rectangle(x, y, x + cell_size, y + cell_size, fill=bg_color, outline="black", width=2)
+                
+                if val != 0:
+                    canvas.create_text(x + cell_size/2, y + cell_size/2, text=str(val), font=("Arial", int(cell_size/2.5), "bold"))
+                    
                 if j < n - 1:
-                    h_val = horiz_const[i][j]
-                    row_str += " < " if h_val == 1 else " > " if h_val == -1 else "   "
-            lines.append(row_str)
-            if i < n - 1:
-                vert_str = ""
-                for j in range(n):
-                    v_val = vert_const[i][j]
-                    vert_str += "^" if v_val == 1 else "v" if v_val == -1 else " "
-                    if j < n - 1: vert_str += "   "
-                lines.append(vert_str)
-        return "\n".join(lines)
+                    h_val = h_const[i][j]
+                    if h_val != 0:
+                        text = "<" if h_val == 1 else ">"
+                        canvas.create_text(x + cell_size + spacing/2, y + cell_size/2, text=text, font=("Arial", int(cell_size/2.5), "bold"), fill="red")
+                        
+                if i < n - 1:
+                    v_val = v_const[i][j]
+                    if v_val != 0:
+                        text = "^" if v_val == 1 else "v"
+                        canvas.create_text(x + cell_size/2, y + cell_size + spacing/2, text=text, font=("Arial", int(cell_size/2.5), "bold"), fill="red")
 
     def run_solver(self):
         filename = self.test_combo.get()
@@ -148,9 +183,8 @@ class FutoshikiGUI:
             # 1. Chuẩn bị giao diện trước khi chạy
             self.solve_btn.config(state=tk.DISABLED) # Khóa nút Solve
             self.status_var.set("Solving (Background)...")
-            self.txt_output.config(state=tk.NORMAL)
-            self.txt_output.delete(1.0, tk.END)
-            self.txt_output.config(state=tk.DISABLED)
+            self.canvas_output.delete("all")
+            self.current_result = None
             
             self.result = None
             start_time = time.time()
@@ -196,17 +230,10 @@ class FutoshikiGUI:
                 self.status_var.set("Limit Exceeded!")
                 messagebox.showwarning("Unsolvable", "Brute-force quá tải. Hãy thử các thuật toán khác!")
             elif self.result:
-                formatted_str = self.format_grid_to_string(n, self.result, h_const, v_const)
-                self.txt_output.config(state=tk.NORMAL)
-                self.txt_output.insert(tk.END, formatted_str)
-                self.txt_output.config(state=tk.DISABLED)
+                self.current_result = self.result
+                self.redraw_output()
                 self.status_var.set(f"Solved in {elapsed} ms")
             else:
                 self.status_var.set("No solution.")
                 messagebox.showinfo("Result", "Không tìm thấy lời giải.")
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = FutoshikiGUI(root)
-    if app.input_files: app.preview_input()
-    root.mainloop()
+

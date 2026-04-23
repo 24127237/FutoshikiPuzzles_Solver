@@ -19,7 +19,7 @@ from src.core.rules import FutoshikiRules
 from src.core.state import State
 from src.solver.Astar import AstarSolver
 from src.solver.Backtracking import BacktrackingSolver
-from src.solver.Backward import BackwardSolver
+from src.solver.PureBackwardChaining import BackwardSolver
 from src.solver.ForwardChaining import ForwardChainingSolver
 
 ALGORITHMS = [

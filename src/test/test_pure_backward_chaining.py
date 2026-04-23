@@ -17,7 +17,7 @@ sys.path.insert(0, PROJECT_ROOT)
 
 from src.core.io_handler import read_input_file, write_output_file
 
-from src.solver.Backward import BackwardSolver
+from src.solver.PureBackwardChaining import BackwardSolver
 
 def run_test(test_id):
     input_path = os.path.join(PROJECT_ROOT, f"Inputs/inputs-{test_id:02d}.txt")
