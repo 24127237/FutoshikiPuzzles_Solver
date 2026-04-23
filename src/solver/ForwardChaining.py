@@ -59,12 +59,6 @@ class ForwardChainingSolver:
         return self._check_non_empty_domains(state) and self.rules.is_valid(state.grid)
 
     @staticmethod
-    def _iter_domain_values(mask, n):
-        for value in range(1, n + 1):
-            if mask & (1 << value):
-                yield value
-
-    @staticmethod
     def _single_value_from_mask(mask):
         # mask is guaranteed to have exactly one set bit > 0.
         return mask.bit_length() - 1
@@ -142,47 +136,69 @@ class ForwardChainingSolver:
         made_progress = False
 
         # Apply positive facts first so assign() can run AC3 propagation early.
-        positive_facts = [lit for lit in inferred_facts if lit > 0]
-        negative_facts = [lit for lit in inferred_facts if lit < 0]
-
-        for lit in positive_facts:
-            r, c, v = self.kb_generator.decode_var(lit)
-            current = state.grid[r][c]
-
-            if current != 0 and current != v:
-                return False, made_progress
-
-            if current == 0:
-                if (state.possible_values[r][c] & (1 << v)) == 0:
-                    return False, made_progress
-                if not state.assign(r, c, v, self.rules):
-                    return False, made_progress
-                made_progress = True
-
-        for lit in negative_facts:
-            var_id = -lit
-            r, c, v = self.kb_generator.decode_var(var_id)
-
-            if state.grid[r][c] == v:
-                return False, made_progress
-
-            if state.grid[r][c] != 0:
+        for lit in inferred_facts:
+            if lit <= 0:
                 continue
 
-            old_domain = state.possible_values[r][c]
-            new_domain = old_domain & ~(1 << v)
-
-            if new_domain == 0:
+            is_consistent, progressed = self._apply_positive_fact(state, lit)
+            if not is_consistent:
                 return False, made_progress
-
-            if new_domain != old_domain:
-                state.possible_values[r][c] = new_domain
+            if progressed:
                 made_progress = True
 
-                if new_domain.bit_count() == 1:
-                    forced_value = self._single_value_from_mask(new_domain)
-                    if not state.assign(r, c, forced_value, self.rules):
-                        return False, made_progress
-                    made_progress = True
+        for lit in inferred_facts:
+            if lit >= 0:
+                continue
+
+            is_consistent, progressed = self._apply_negative_fact(state, lit)
+            if not is_consistent:
+                return False, made_progress
+            if progressed:
+                made_progress = True
 
         return True, made_progress
+
+    def _apply_positive_fact(self, state, lit):
+        r, c, v = self.kb_generator.decode_var(lit)
+        current = state.grid[r][c]
+
+        if current != 0 and current != v:
+            return False, False
+
+        if current != 0:
+            return True, False
+
+        if (state.possible_values[r][c] & (1 << v)) == 0:
+            return False, False
+
+        if not state.assign(r, c, v, self.rules):
+            return False, False
+
+        return True, True
+
+    def _apply_negative_fact(self, state, lit):
+        r, c, v = self.kb_generator.decode_var(-lit)
+
+        if state.grid[r][c] == v:
+            return False, False
+
+        if state.grid[r][c] != 0:
+            return True, False
+
+        old_domain = state.possible_values[r][c]
+        new_domain = old_domain & ~(1 << v)
+
+        if new_domain == 0:
+            return False, False
+
+        if new_domain == old_domain:
+            return True, False
+
+        state.possible_values[r][c] = new_domain
+
+        if new_domain.bit_count() == 1:
+            forced_value = self._single_value_from_mask(new_domain)
+            if not state.assign(r, c, forced_value, self.rules):
+                return False, False
+
+        return True, True
