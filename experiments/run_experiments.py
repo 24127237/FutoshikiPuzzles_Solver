@@ -21,14 +21,15 @@ from src.solver.Astar import AstarSolver
 from src.solver.Backtracking import BacktrackingSolver
 from src.solver.PureBackwardChaining import BackwardSolver
 from src.solver.FCHybrid import FCHybridSolver
+from src.solver.PureForwardChaining import PureForwardChainingSolver
 
 ALGORITHMS = [
-    "forward_chaining",
-    "forward_chaining_fallback_astar",
-    "forward_chaining_fallback_backtracking",
-    "backward_chaining",
+    "fc_hybrid",
+    "fc_pure",
+    "fc_hybrid_fallback_backtracking",
+    "fc_pure_fallback_backtracking",
+    "pure_backward_chaining",
     "astar",
-    "backtracking",
 ]
 
 
@@ -79,13 +80,19 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
     fc_inferences = None
     fc_iterations = None
 
-    if algorithm == "forward_chaining":
+    if algorithm == "fc_hybrid":
         solver = FCHybridSolver(rules)
         result_grid = solver.solve(State(n, grid, rules))
         stats = dict(getattr(solver, "stats", {}))
         fc_inferences = stats.get("num_inferences")
         fc_iterations = stats.get("fc_iterations")
-    elif algorithm == "forward_chaining_fallback_astar":
+    elif algorithm == "fc_pure":
+        solver = PureForwardChainingSolver(rules)
+        result_grid = solver.solve(State(n, grid, rules))
+        stats = dict(getattr(solver, "stats", {}))
+        fc_inferences = stats.get("num_inferences")
+        fc_iterations = stats.get("fc_iterations")
+    elif algorithm == "fc_hybrid_fallback_backtracking":
         fc_solver = FCHybridSolver(rules)
         pruned_state = State(n, grid, rules)
         fc_consistent = run_fc_pruning(fc_solver, pruned_state)
@@ -101,12 +108,11 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
             }
         elif fc_consistent:
             fallback_used = 1
-            fallback_algorithm = "astar"
-            astar_solver = AstarSolver()
-            # Reuse FC-pruned state so A* benefits from FC propagation work.
-            path = astar_solver.solve(pruned_state, rules)
-            result_grid = path[-1] if path else None
-            fallback_expansions = dict(getattr(astar_solver, "stats", {})).get("num_expansions")
+            fallback_algorithm = "backtracking"
+            bt_solver = BacktrackingSolver(rules)
+            # Reuse FC-pruned state so backtracking benefits from FC propagation work.
+            result_grid = bt_solver.solve(pruned_state)
+            fallback_expansions = dict(getattr(bt_solver, "stats", {})).get("num_expansions")
             stats = {
                 "num_inferences": fc_inferences,
                 "fc_iterations": fc_iterations,
@@ -118,8 +124,8 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
                 "num_inferences": fc_inferences,
                 "fc_iterations": fc_iterations,
             }
-    elif algorithm == "forward_chaining_fallback_backtracking":
-        fc_solver = FCHybridSolver(rules)
+    elif algorithm == "fc_pure_fallback_backtracking":
+        fc_solver = PureForwardChainingSolver(rules)
         initial_state = State(n, grid, rules)
         result_grid = fc_solver.solve(initial_state)
         fc_stats = dict(getattr(fc_solver, "stats", {}))
@@ -142,7 +148,7 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
                 "num_inferences": fc_inferences,
                 "fc_iterations": fc_iterations,
             }
-    elif algorithm == "backward_chaining":
+    elif algorithm == "pure_backward_chaining":
         solver = BackwardSolver(n, horiz, vert)
         result_grid = solver.solve([row[:] for row in grid])
         stats = dict(getattr(solver, "stats", {}))
@@ -150,10 +156,6 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
         solver = AstarSolver()
         path = solver.solve(State(n, grid, rules), rules)
         result_grid = path[-1] if path else None
-        stats = dict(getattr(solver, "stats", {}))
-    elif algorithm == "backtracking":
-        solver = BacktrackingSolver(rules)
-        result_grid = solver.solve(State(n, grid, rules))
         stats = dict(getattr(solver, "stats", {}))
     else:
         raise ValueError(f"Unsupported algorithm: {algorithm}")
@@ -165,12 +167,12 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
     if result_grid is not None:
         solved = rules.is_solved(result_grid)
 
-    if algorithm == "forward_chaining_fallback_astar" or algorithm == "forward_chaining_fallback_backtracking":
+    if algorithm in ("fc_hybrid_fallback_backtracking", "fc_pure_fallback_backtracking"):
         # For fallback modes, treat total effort as FC inference effort + fallback search effort.
         fc_part = fc_inferences if fc_inferences is not None else 0
         fb_part = fallback_expansions if fallback_expansions is not None else 0
         num_main = fc_part + fb_part
-    elif algorithm in ("forward_chaining", "backward_chaining"):
+    elif algorithm in ("fc_hybrid", "fc_pure", "pure_backward_chaining"):
         num_main = stats.get("num_inferences")
     else:
         num_main = stats.get("num_expansions")
@@ -375,11 +377,11 @@ def write_summary_report(path: Path, summary_rows: list):
     lines.append("")
     lines.append("- Which performs best and why: prioritize solve rate first, then runtime and memory tradeoff.")
     lines.append("- Preferred conditions:")
-    lines.append("  FC: strong local constraints, good for fast pruning/inference.")
-    lines.append("  FC+fallback: practical mode when you want FC pruning benefits but still need full-solve robustness.")
-    lines.append("  Backward Chaining: query-driven reasoning and proof traceability.")
+    lines.append("  FC-Hybrid: stronger local pruning with Modus Ponens + CSP-style propagation.")
+    lines.append("  FC-Pure: strict Horn-clause inference baseline for logical behavior analysis.")
+    lines.append("  FC+Backtracking fallback: practical mode when FC alone cannot finish.")
+    lines.append("  Backward Chaining / Pure Backward Chaining: query-driven reasoning and proof traceability.")
     lines.append("  A*: robust full-solution search with guided expansion.")
-    lines.append("  Backtracking: simple baseline, can be effective with MRV/forward-checking.")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -435,14 +437,14 @@ def generate_plots(rows: list, summary_rows: list, output_dir: Path):
 
         plt.figure(figsize=(8, 4.5))
         for alg in ALGORITHMS:
-            points = sorted(
-                [
-                    (n, safe_mean(v))
-                    for (a, n), v in by_alg_n.items()
-                    if a == alg and safe_mean(v) is not None
-                ],
-                key=lambda x: x[0],
-            )
+            points = []
+            for (a, n), v in by_alg_n.items():
+                if a != alg:
+                    continue
+                avg_runtime_n = safe_mean(v)
+                if avg_runtime_n is not None:
+                    points.append((n, avg_runtime_n))
+            points.sort(key=lambda x: x[0])
             if not points:
                 continue
             xs = [p[0] for p in points]
@@ -463,7 +465,7 @@ def list_input_files(inputs_dir: Path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Benchmark FC/BC/A*/Backtracking on Futoshiki inputs")
+    parser = argparse.ArgumentParser(description="Benchmark FC variants, BC variants, and A* on Futoshiki inputs")
     parser.add_argument("--repeats", type=int, default=3, help="Runs per algorithm per input")
     parser.add_argument("--timeout", type=int, default=60, help="Timeout seconds per single run")
     parser.add_argument(
