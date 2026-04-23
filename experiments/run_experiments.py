@@ -32,6 +32,21 @@ ALGORITHMS = [
 ]
 
 
+def run_fc_pruning(fc_solver: ForwardChainingSolver, state: State) -> bool:
+    """Run FC inference to fixpoint directly on the provided state.
+
+    Returns True if the state remains consistent after FC propagation,
+    otherwise False.
+    """
+    fc_solver.stats = {"num_inferences": 0, "fc_iterations": 0}
+    fc_solver.horn_rules = fc_solver.kb_generator.generate_horn_rules(
+        fc_solver.rules.horiz_const,
+        fc_solver.rules.vert_const,
+    )
+    fc_solver.rules_by_premise = fc_solver._index_rules_by_premise(fc_solver.horn_rules)
+    return fc_solver._forward_chain(state)
+
+
 def detect_difficulty(input_path: Path) -> str:
     with input_path.open("r", encoding="utf-8") as f:
         for raw_line in f:
@@ -72,17 +87,24 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
         fc_iterations = stats.get("fc_iterations")
     elif algorithm == "forward_chaining_fallback_astar":
         fc_solver = ForwardChainingSolver(rules)
-        initial_state = State(n, grid, rules)
-        result_grid = fc_solver.solve(initial_state)
+        pruned_state = State(n, grid, rules)
+        fc_consistent = run_fc_pruning(fc_solver, pruned_state)
         fc_stats = dict(getattr(fc_solver, "stats", {}))
         fc_inferences = fc_stats.get("num_inferences")
         fc_iterations = fc_stats.get("fc_iterations")
 
-        if result_grid is None:
+        if fc_consistent and rules.is_solved(pruned_state.grid):
+            result_grid = pruned_state.grid
+            stats = {
+                "num_inferences": fc_inferences,
+                "fc_iterations": fc_iterations,
+            }
+        elif fc_consistent:
             fallback_used = 1
             fallback_algorithm = "astar"
             astar_solver = AstarSolver()
-            path = astar_solver.solve(State(n, grid, rules), rules)
+            # Reuse FC-pruned state so A* benefits from FC propagation work.
+            path = astar_solver.solve(pruned_state, rules)
             result_grid = path[-1] if path else None
             fallback_expansions = dict(getattr(astar_solver, "stats", {})).get("num_expansions")
             stats = {
@@ -91,6 +113,7 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
                 "num_expansions": fallback_expansions,
             }
         else:
+            result_grid = None
             stats = {
                 "num_inferences": fc_inferences,
                 "fc_iterations": fc_iterations,
@@ -412,7 +435,14 @@ def generate_plots(rows: list, summary_rows: list, output_dir: Path):
 
         plt.figure(figsize=(8, 4.5))
         for alg in ALGORITHMS:
-            points = sorted([(n, safe_mean(v)) for (a, n), v in by_alg_n.items() if a == alg], key=lambda x: x[0])
+            points = sorted(
+                [
+                    (n, safe_mean(v))
+                    for (a, n), v in by_alg_n.items()
+                    if a == alg and safe_mean(v) is not None
+                ],
+                key=lambda x: x[0],
+            )
             if not points:
                 continue
             xs = [p[0] for p in points]
@@ -509,8 +539,10 @@ def main():
         return row
 
     # Use joblib to run experiment tasks in parallel.
-    rows = Parallel(n_jobs=args.jobs, backend="threading", batch_size=1)(
-        delayed(execute_task)(task) for task in tasks
+    rows = list(
+        Parallel(n_jobs=args.jobs, backend="threading", batch_size="auto")(
+            delayed(execute_task)(task) for task in tasks
+        )
     )
 
     detailed_fields = [
