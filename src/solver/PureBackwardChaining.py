@@ -84,78 +84,57 @@ def unify(t1: Term, t2: Term, subst: dict):
 # SLD RESOLUTION ENGINE
 # =============================================================================
 
-def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase, stats: dict = None):
+def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase, stats: dict = None, callback=None):
     """
     Depth-first SLD resolution engine — Prolog's execution model.
-
-    Base case (⊢ ε):
-        goals is empty → all subgoals proved → yield current substitution.
-
-    Inductive case:
-        G   = leftmost goal  (selected literal)
-        Gs  = remaining goals
-        For each clause C in KB whose head unifies with G:
-            1. Rename C to avoid variable clashes.
-            2. Unify head(C) with G under current subst → θ.
-            3. Recurse: sld_resolve(body(C) + Gs, θ, kb).
-        Backtracking is implicit: if a branch fails, the generator simply
-        moves to the next clause.  First solution is taken by the caller
-        via next().
     """
     if not goals:
-        yield subst          # ⊢ ε  — proof complete
+        if callback: callback("SUCCESS", "Found valid assignment", subst)
+        yield subst          
         return
 
     global _rename_counter
 
     goal      = goals[0]
     rest      = goals[1:]
+
+    if callback: callback("TRY_GOAL", f"Resolving: {goal}", subst)
+
     if stats is not None:
         stats["num_goal_expansions"] = stats.get("num_goal_expansions", 0) + 1
 
     # --- built-in arithmetic guards (not stored in KB) ---
-    if isinstance(goal, Compound):
-
-        if goal.functor == "less_than" and len(goal.args) == 2:
-            # less_than(V1, V2) :- V1 < V2   [arithmetic built-in]
-            a = goal.args[0].walk(subst)
-            b = goal.args[1].walk(subst)
-            if isinstance(a, Number) and isinstance(b, Number):
-                if a.value < b.value:
-                    yield from sld_resolve(rest, subst, kb, stats)
-            return
-
-        if goal.functor == "greater_than" and len(goal.args) == 2:
-            # greater_than(V1, V2) :- V1 > V2   [arithmetic built-in]
-            a = goal.args[0].walk(subst)
-            b = goal.args[1].walk(subst)
-            if isinstance(a, Number) and isinstance(b, Number):
-                if a.value > b.value:
-                    yield from sld_resolve(rest, subst, kb, stats)
-            return
-
-        if goal.functor == "neq" and len(goal.args) == 2:
-            # neq(V1, V2) :- V1 != V2   [built-in inequality]
-            a = goal.args[0].walk(subst)
-            b = goal.args[1].walk(subst)
-            if a != b:
-                yield from sld_resolve(rest, subst, kb, stats)
-            return
+    if isinstance(goal, Compound) and goal.functor in ["less_than", "greater_than", "neq"]:
+        a = goal.args[0].walk(subst)
+        b = goal.args[1].walk(subst)
+        
+        # Nếu đã biết giá trị cả 2, kiểm tra logic
+        if isinstance(a, Number) and isinstance(b, Number):
+            res = False
+            if goal.functor == "less_than": res = a.value < b.value
+            elif goal.functor == "greater_than": res = a.value > b.value
+            elif goal.functor == "neq": res = a.value != b.value
+            
+            if not res:
+                if callback: callback("CONFLICT", f"Constraint Violation: {a} {goal.functor} {b}", subst)
+                return # Backtrack
+        
+        # Nếu thỏa mãn hoặc chưa đủ dữ kiện, đi tiếp
+        yield from sld_resolve(rest, subst, kb, stats, callback)
+        return
 
     # --- KB lookup: resolve goal against stored Horn clauses ---
     clauses = kb.get(goal.functor, len(goal.args))
     for clause in clauses:
         _rename_counter += 1
-        fresh   = rename_clause(clause, str(_rename_counter))
+        fresh = rename_clause(clause, str(_rename_counter))
         new_sub = unify(goal, fresh.head, subst)
+        
         if new_sub is None:
-            continue                    # head didn't unify — backtrack
-        if stats is not None:
-            stats["num_inferences"] = stats.get("num_inferences", 0) + 1
-
-        # Prepend clause body to remaining goals
-        new_goals = (fresh.body if isinstance(fresh, Rule) else []) + rest
-        yield from sld_resolve(new_goals, new_sub, kb, stats)
+            continue
+            
+        yield from sld_resolve((fresh.body if isinstance(fresh, Rule) else []) + rest, 
+                            new_sub, kb, stats, callback)
 
 
 # =============================================================================
@@ -231,7 +210,7 @@ def query_cells(n, cells, grid, horiz_const, vert_const) -> list:
 
             for pc in range(c):
                 goals.append(Compound("neq", [query_vars[(r, pc)], qvar]))
-                
+
             for pr in range(r):
                 goals.append(Compound("neq", [query_vars[(pr, c)], qvar]))
 
