@@ -10,7 +10,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 
 from src.core.io_handler import read_input_file
-from src.solver.Backward import query_cell
+from src.solver.PureBackwardChaining import query_cell
 
 def main():
     print("=" * 70)
@@ -18,7 +18,7 @@ def main():
     print("=" * 70)
 
     # Load puzzle
-    input_path = os.path.join(PROJECT_ROOT, "Inputs/inputs-03.txt")
+    input_path = os.path.join(PROJECT_ROOT, "Inputs/inputs-05.txt")
     n, grid, horiz, vert = read_input_file(input_path)
 
     print(f"\nPuzzle loaded: {n}×{n} grid from {os.path.basename(input_path)}")

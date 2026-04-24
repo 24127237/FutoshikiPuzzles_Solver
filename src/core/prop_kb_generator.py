@@ -21,6 +21,14 @@ class FutoshikiKBGenerator:
         v = (rem % self.n) + 1
         return r, c, v
 
+    # =========================================================================
+    # NOTE: CÁC HÀM TỪ ĐÂY ĐẾN `generate_full_kb` LÀ ĐỂ SINH CNF TỔNG QUÁT.
+    # CHÚNG KHÔNG ĐƯỢC SỬ DỤNG TRONG FORWARD CHAINING / BACKWARD CHAINING.
+    # CHÚNG CHỈ ĐÓNG VAI TRÒ DỰ PHÒNG:
+    # 1. Dành cho các bộ giải SAT Solver hoặc DPLL sau này nếu cần.
+    # 2. Dành cho các Unit Test kiểm tra tính đúng đắn của logic.
+    # =========================================================================
+
     def generate_cell_constraints(self):
         """
         A1 & A2: Ràng buộc mỗi ô chứa ĐÚNG MỘT giá trị từ 1 đến N.
@@ -159,7 +167,7 @@ class FutoshikiKBGenerator:
         def add_rule(body, head):
             rules.append((tuple(body), head))
 
-        # R1: Nếu ô có giá trị v thì ô đó không thể nhận giá trị khác v.
+        # R1: Nếu ô có giá trị v thì ô đó không thể nhận giá trị khác v (A2).
         for r in range(self.n):
             for c in range(self.n):
                 for v in range(1, self.n + 1):
@@ -169,7 +177,7 @@ class FutoshikiKBGenerator:
                             continue
                         add_rule((var_v,), -self.get_var(r, c, u))
 
-        # R2: Tính duy nhất theo hàng/cột (A3/A4) dưới dạng Horn implication.
+        # R2: Tính duy nhất theo hàng/cột (A3/A4) dưới dạng Horn implication (A3, A4).
         for v in range(1, self.n + 1):
             for r in range(self.n):
                 for c1 in range(self.n):
@@ -183,7 +191,7 @@ class FutoshikiKBGenerator:
                         if r1 != r2:
                             add_rule((self.get_var(r1, c, v),), -self.get_var(r2, c, v))
 
-        # R3: Bất đẳng thức ngang/dọc -> loại bỏ giá trị không hợp lệ ở ô kề.
+        # R3: Bất đẳng thức ngang/dọc -> loại bỏ giá trị không hợp lệ ở ô kề (A5, A6).
         for r in range(self.n):
             for c in range(self.n - 1):
                 const = horiz_const[r][c]
@@ -213,6 +221,30 @@ class FutoshikiKBGenerator:
                         if not is_valid:
                             add_rule((top_var,), -bottom_var)
                             add_rule((bottom_var,), -top_var)
+
+        # R4: Mỗi ô phải có ÍT NHẤT 1 giá trị từ 1 đến N (A1).
+        # Dưới dạng Horn: Nếu N-1 giá trị đã bị loại trừ (âm), thì giá trị còn lại phải đúng.
+        for r in range(self.n):
+            for c in range(self.n):
+                for v in range(1, self.n + 1):
+                    body = [-self.get_var(r, c, u) for u in range(1, self.n + 1) if u != v]
+                    add_rule(body, self.get_var(r, c, v))
+
+        # R5: Mỗi hàng phải chứa mỗi giá trị v ÍT NHẤT 1 lần (A3).
+        # Nếu v bị loại trừ ở N-1 cột, thì nó phải nằm ở cột còn lại.
+        for r in range(self.n):
+            for v in range(1, self.n + 1):
+                for c in range(self.n):
+                    body = [-self.get_var(r, c_other, v) for c_other in range(self.n) if c_other != c]
+                    add_rule(body, self.get_var(r, c, v))
+
+        # R6: Mỗi cột phải chứa mỗi giá trị v ÍT NHẤT 1 lần (A4).
+        # Nếu v bị loại trừ ở N-1 hàng, thì nó phải nằm ở hàng còn lại.
+        for c in range(self.n):
+            for v in range(1, self.n + 1):
+                for r in range(self.n):
+                    body = [-self.get_var(r_other, c, v) for r_other in range(self.n) if r_other != r]
+                    add_rule(body, self.get_var(r, c, v))
 
         return rules
 
