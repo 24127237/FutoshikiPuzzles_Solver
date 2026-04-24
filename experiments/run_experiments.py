@@ -30,6 +30,7 @@ ALGORITHMS = [
     "fc_pure_fallback_backtracking",
     "pure_backward_chaining",
     "astar",
+    "backtracking",
 ]
 
 
@@ -86,6 +87,11 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
         stats = dict(getattr(solver, "stats", {}))
         fc_inferences = stats.get("num_inferences")
         fc_iterations = stats.get("fc_iterations")
+    elif algorithm == "backtracking":
+        solver = BacktrackingSolver(rules)
+        result_grid = solver.solve(State(n, grid, rules))
+        stats = dict(getattr(solver, "stats", {}))
+
     elif algorithm == "fc_pure":
         solver = PureForwardChainingSolver(rules)
         result_grid = solver.solve(State(n, grid, rules))

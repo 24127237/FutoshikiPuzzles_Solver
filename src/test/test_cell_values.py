@@ -10,7 +10,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, PROJECT_ROOT)
 
 from src.core.io_handler import read_input_file
-from src.solver.PureBackwardChaining import query_cell
+from src.solver.PureBackwardChaining import query_cells
 
 def main():
     print("=" * 70)
@@ -35,7 +35,7 @@ def main():
         for c in range(n):
             if grid[r][c] == 0:
                 print(f"\nCell ({r}, {c}): Finding valid domain...")
-                valid = query_cell(n, r, c, grid, horiz, vert)
+                valid = query_cells(n, r, c, grid, horiz, vert)
                 print(f"  Valid values: {valid if valid else 'NONE (contradiction)'}")
             else:
                 print(f"\nCell ({r}, {c}): Already filled with {grid[r][c]}")

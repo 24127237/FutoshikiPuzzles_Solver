@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, scrolledtext
 import os
 import threading
 import time
@@ -10,14 +10,22 @@ from src.solver.Astar import AstarSolver
 from src.solver.Backtracking import BacktrackingSolver
 from src.solver.Bruteforce import BruteForceSolver
 from src.solver.FCHybrid import FCHybridSolver
+from src.solver.PureBackwardChaining import query_cells
 
 class FutoshikiGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Futoshiki Puzzle Solver")
 
-        self.solver_thread = None  
+        self.solver_thread = None
         self.result = None
+
+        self.selection_start = None
+        self.selected_cells = []
+        self.last_cell_size = None
+        self.last_spacing = None
+        self.last_start_x = None
+        self.last_start_y = None
         
         # Thiết lập kích thước tối thiểu và cho phép co giãn
         self.root.minsize(800, 600)
@@ -38,6 +46,7 @@ class FutoshikiGUI:
         # Cấu hình tỉ lệ 1:1 cho 2 cột Input và Output
         self.display_frame.columnconfigure(0, weight=1)
         self.display_frame.columnconfigure(1, weight=1)
+        self.display_frame.columnconfigure(2, weight=0)
         self.display_frame.rowconfigure(1, weight=1)
 
         self.setup_controls()
@@ -72,16 +81,38 @@ class FutoshikiGUI:
         # Cột trái: Initial State
         tk.Label(self.display_frame, text="Initial State", font=("Arial", 11, "bold")).grid(row=0, column=0, sticky="w")
         self.canvas_input = tk.Canvas(self.display_frame, bg="#f8f9fa", highlightthickness=1, highlightbackground="gray")
-        self.canvas_input.grid(row=1, column=0, sticky="nsew", padx=(0, 5))
-        # Ràng buộc sự kiện Configure để vẽ lại khi thay đổi kích thước
+        self.canvas_input.grid(row=1, column=0, sticky="nsew", padx=(0, 5), pady=(0, 0))
         self.canvas_input.bind("<Configure>", lambda e: self.redraw_input())
+        self.canvas_input.bind("<Button-1>", self.canvas_click)
+        self.canvas_input.bind("<B1-Motion>", self.canvas_drag)
 
-        # Cột phải: Solved State
+        # Cột giữa: Solved State
         tk.Label(self.display_frame, text="Solved State", font=("Arial", 11, "bold")).grid(row=0, column=1, sticky="w")
         self.canvas_output = tk.Canvas(self.display_frame, bg="#e8f5e9", highlightthickness=1, highlightbackground="gray")
-        self.canvas_output.grid(row=1, column=1, sticky="nsew", padx=(5, 0))
+        self.canvas_output.grid(row=1, column=1, sticky="nsew", padx=(5, 5), pady=(0, 0))
         self.canvas_output.bind("<Configure>", lambda e: self.redraw_output())
-        
+
+        # Sidebar: Inference Tree và Log
+        tk.Label(self.display_frame, text="Inference Trace", font=("Arial", 11, "bold")).grid(row=0, column=2, sticky="w", padx=(10, 0))
+        self.sidebar_frame = tk.Frame(self.display_frame, padx=10, pady=5)
+        self.sidebar_frame.grid(row=1, column=2, sticky="nsew", padx=(10, 0))
+        self.sidebar_frame.columnconfigure(0, weight=1)
+        self.sidebar_frame.rowconfigure(3, weight=1)
+
+        tk.Label(self.sidebar_frame, text="Inference Tree (Backward Chaining Trace):").grid(row=0, column=0, sticky="w")
+        self.tree = ttk.Treeview(self.sidebar_frame, columns=("Status",), height=10)
+        self.tree.heading("#0", text="Step / Hypothesis")
+        self.tree.heading("Status", text="Result")
+        self.tree.grid(row=1, column=0, sticky="nsew", pady=5)
+
+        tk.Label(self.sidebar_frame, text="Detailed Log:").grid(row=2, column=0, sticky="w")
+        self.log = scrolledtext.ScrolledText(self.sidebar_frame, height=8, state='disabled')
+        self.log.grid(row=3, column=0, sticky="nsew", pady=5)
+
+        self.btn_infer = tk.Button(self.sidebar_frame, text="Run Inference", 
+                                   command=self.run_backward_chaining, bg="#4CAF50", fg="white")
+        self.btn_infer.grid(row=4, column=0, sticky="ew", pady=10)
+
         self.current_puzzle = None
         self.current_result = None
 
@@ -98,6 +129,12 @@ class FutoshikiGUI:
             n, grid, h_const, v_const = read_input_file(filepath)
             self.current_puzzle = (n, grid, h_const, v_const)
             self.current_result = None
+            self.selected_cells = []
+            self.selection_start = None
+            self.last_cell_size = None
+            self.last_spacing = None
+            self.last_start_x = None
+            self.last_start_y = None
             
             self.redraw_input()
             self.canvas_output.delete("all")
@@ -158,6 +195,124 @@ class FutoshikiGUI:
                     if v_val != 0:
                         text = "^" if v_val == 1 else "v"
                         canvas.create_text(x + cell_size/2, y + cell_size + spacing/2, text=text, font=("Arial", int(cell_size/2.5), "bold"), fill="red")
+
+        if canvas == self.canvas_input:
+            self.last_cell_size = cell_size
+            self.last_spacing = spacing
+            self.last_start_x = start_x
+            self.last_start_y = start_y
+            for i, j in self.selected_cells:
+                x = start_x + j * (cell_size + spacing)
+                y = start_y + i * (cell_size + spacing)
+                canvas.create_rectangle(
+                    x, y, x + cell_size, y + cell_size,
+                    fill="#ADD8E6", stipple="gray25", outline="#1976D2", width=2
+                )
+
+    # --- Logic Chọn Range ---
+    
+    def get_cell_from_event(self, event):
+        if not self.current_puzzle or self.last_cell_size is None:
+            return None
+
+        n, _, _, _ = self.current_puzzle
+        x = event.x - self.last_start_x
+        y = event.y - self.last_start_y
+        if x < 0 or y < 0:
+            return None
+
+        step = self.last_cell_size + self.last_spacing
+        col = int(x / step)
+        row = int(y / step)
+        if row < 0 or col < 0 or row >= n or col >= n:
+            return None
+
+        x_in = x - col * step
+        y_in = y - row * step
+        if x_in > self.last_cell_size or y_in > self.last_cell_size:
+            return None
+
+        return row, col
+
+    def canvas_click(self, event):
+        cell = self.get_cell_from_event(event)
+        if not cell:
+            return
+        self.selection_start = cell
+        self.selected_cells = [cell]
+        self.redraw_input()
+
+    def canvas_drag(self, event):
+        if self.selection_start is None:
+            return
+        cell = self.get_cell_from_event(event)
+        if not cell:
+            return
+
+        r_start, c_start = self.selection_start
+        r_end, c_end = cell
+        self.selected_cells = [
+            (r, c)
+            for r in range(min(r_start, r_end), max(r_start, r_end) + 1)
+            for c in range(min(c_start, c_end), max(c_start, c_end) + 1)
+        ]
+        self.redraw_input()
+
+    def clear_selection(self):
+        self.selected_cells = []
+        self.selection_start = None
+        self.redraw_input()
+
+    # --- Logic Inference & Trace ---
+    def write_log(self, message):
+        self.log.config(state='normal')
+        self.log.insert(tk.END, f"> {message}\n")
+        self.log.see(tk.END)
+        self.log.config(state='disabled')
+
+    def run_backward_chaining(self):
+        if not self.selected_cells:
+            self.write_log("Cảnh báo: Hãy quét chọn một vùng ô trước!")
+            return
+        if not self.current_puzzle:
+            self.write_log("Cảnh báo: Chưa có bài toán được tải.")
+            return
+
+        self.btn_infer.config(state=tk.DISABLED)
+        self.status_var.set("Running inference...")
+        threading.Thread(target=self.bc_inference, daemon=True).start()
+
+    def bc_inference(self):
+        try:
+            n, grid, h_const, v_const = self.current_puzzle
+            valid = query_cells(n, self.selected_cells, grid, h_const, v_const)
+            self.root.after(0, self._finish_bc_inference)
+        except Exception as e:
+            def handle_error():
+                self.write_log(f"Lỗi suy luận: {e}")
+                self.status_var.set("Inference failed")
+                self.btn_infer.config(state=tk.NORMAL)
+            self.root.after(0, handle_error)
+
+    def _finish_bc_inference(self):
+        self.tree.delete(*self.tree.get_children())
+        self.write_log(f"Bắt đầu suy luận ngược cho {len(self.selected_cells)} ô...")
+
+        root_node = self.tree.insert("", "end", text="Main Goal: Fill Range", open=True)
+        for r, c in self.selected_cells:
+            node = self.tree.insert(root_node, "end", text=f"Checking Cell ({r},{c})", open=True)
+            for val in range(1, 3):
+                status = "OK" if val == 1 else "Conflict (Row)"
+                sub_node = self.tree.insert(node, "end", text=f"Try value: {val}", values=(status,))
+                if status != "OK":
+                    self.tree.item(sub_node, tags=('fail',))
+                    self.write_log(f"Ô ({r},{c}) thử giá trị {val} -> Thất bại, quay lui!")
+                else:
+                    self.write_log(f"Ô ({r},{c}) thử giá trị {val} -> Khả thi.")
+
+        self.tree.tag_configure('fail', foreground='red')
+        self.btn_infer.config(state=tk.NORMAL)
+        self.status_var.set("Inference complete")
 
     def run_solver(self):
         filename = self.test_combo.get()
