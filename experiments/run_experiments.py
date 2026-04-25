@@ -98,7 +98,7 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
         stats = dict(getattr(solver, "stats", {}))
         fc_inferences = stats.get("num_inferences")
         fc_iterations = stats.get("fc_iterations")
-    elif algorithm == "fc_hybrid_fallback_backtracking":
+    elif algorithm == "fc_hybrid_backtrack":
         fc_solver = FCHybridSolver(rules)
         pruned_state = State(n, grid, rules)
         fc_consistent = run_fc_pruning(fc_solver, pruned_state)
@@ -130,7 +130,7 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
                 "num_inferences": fc_inferences,
                 "fc_iterations": fc_iterations,
             }
-    elif algorithm == "fc_pure_fallback_backtracking":
+    elif algorithm == "fc_pure_backtrack":
         fc_solver = PureForwardChainingSolver(rules)
         initial_state = State(n, grid, rules)
         result_grid = fc_solver.solve(initial_state)
@@ -173,7 +173,7 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
     if result_grid is not None:
         solved = rules.is_solved(result_grid)
 
-    if algorithm in ("fc_hybrid_fallback_backtracking", "fc_pure_fallback_backtracking"):
+    if algorithm in ("fc_hybrid_backtrack", "fc_pure_backtrack"):
         # For fallback modes, treat total effort as FC inference effort + fallback search effort.
         fc_part = fc_inferences if fc_inferences is not None else 0
         fb_part = fallback_expansions if fallback_expansions is not None else 0
