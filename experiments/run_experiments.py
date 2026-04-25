@@ -26,8 +26,8 @@ from src.solver.PureForwardChaining import PureForwardChainingSolver
 ALGORITHMS = [
     "fc_hybrid",
     "fc_pure",
-    "fc_hybrid_fallback_backtracking",
-    "fc_pure_fallback_backtracking",
+    "fc_hybrid_backtrack",
+    "fc_pure_backtrack",
     "pure_backward_chaining",
     "astar",
     "backtracking",
