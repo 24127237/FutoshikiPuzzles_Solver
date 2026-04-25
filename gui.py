@@ -110,7 +110,11 @@ class FutoshikiGUI:
 
         self.btn_infer = tk.Button(self.sidebar_frame, text="Run Inference", 
                                    command=self.run_backward_chaining, bg="#4CAF50", fg="white")
+        self.btn_clear = tk.Button(self.sidebar_frame, text="Clear Log", 
+                                   command=self.clear_log, bg="#f44336", fg="white")
+
         self.btn_infer.grid(row=4, column=0, sticky="ew", pady=10)
+        self.btn_clear.grid(row=5, column=0, sticky="ew", pady=5)
 
         self.current_puzzle = None
         self.current_result = None
@@ -282,6 +286,10 @@ class FutoshikiGUI:
         self.log.see(tk.END)
         self.log.config(state='disabled')
 
+    def clear_log(self):
+        self.log.config(state='normal')
+        self.log.delete(1.0, tk.END)
+        self.log.config(state='disabled')
     def run_backward_chaining(self):
         if not self.selected_cells:
             self.write_log("Cảnh báo: Hãy quét chọn một vùng ô trước!")
