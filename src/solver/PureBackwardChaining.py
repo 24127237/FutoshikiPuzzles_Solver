@@ -5,6 +5,8 @@ Implements unification, SLD resolution (Prolog's execution model),
 query generation, and solution extraction.
 """
 
+import re
+
 from src.core.fol_types import Term, Atom, Number, Var, Compound
 from src.core.fol_kb import KnowledgeBase, build_kb, cell, Fact, Rule
 
@@ -79,6 +81,24 @@ def unify(t1: Term, t2: Term, subst: dict):
     # Case 5: fail
     return None
 
+import re
+
+def beautify_term(term, subst):
+    """Làm đẹp một đối số đơn lẻ (biến hoặc nguyên tử)"""
+    t = term.walk(subst)
+    s = str(t)
+    
+    # 1. Xử lý tọa độ v_r_c hoặc Y_r_c -> cell(R, C)
+    # Pattern này khớp với v_0_0, v_0_0_166, Y_0_0...
+    match = re.search(r'\b[vY]_(\d+)_(\d+)(?:_\d+)?\b', s)
+    if match:
+        r = int(match.group(1)) + 1
+        c = int(match.group(2)) + 1
+        return f"cell({r}, {c})"
+    
+    # 2. Xử lý tên biến có counter: X_G_166 -> X, V_G_40 -> V
+    s = re.sub(r'(_G)?_\d+$', '', s)
+    return s
 
 # =============================================================================
 # SLD RESOLUTION ENGINE
@@ -100,7 +120,28 @@ def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase, stats: dict = None,
 
     if stats is not None:
         stats["num_goal_expansions"] = stats.get("num_goal_expansions", 0) + 1
-
+    
+# ---------------- BỘ LỌC LÀM ĐẸP LOG ----------------
+    if callback:
+        f = goal.functor
+        # Làm đẹp từng đối số một cách độc lập
+        args = [beautify_term(a, subst) for a in goal.args]
+        
+        if f == "val":
+            readable_msg = f"Find value for {args[0]}"
+        elif f == "given":
+            readable_msg = f"Verify given value {args[0]}"
+        elif f == "less" or f == "less_than":
+            readable_msg = f"{args[0]} < {args[1]}"
+        elif f == "greater" or f == "greater_than":
+            readable_msg = f"{args[0]} > {args[1]}"
+        elif f == "neq":
+            readable_msg = f"{args[0]} != {args[1]}"
+        elif f == "lh":
+            readable_msg = f"{args[0]} < {args[1]}"
+        else:
+            readable_msg = f"{f}({', '.join(args)})"
+        callback("CHECK_CELL", readable_msg, subst)
     # --- built-in arithmetic guards (not stored in KB) ---
     if isinstance(goal, Compound) and goal.functor in ["less_than", "greater_than", "neq"]:
         a = goal.args[0].walk(subst)
@@ -122,7 +163,7 @@ def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase, stats: dict = None,
         return
 
     # --- KB lookup: resolve goal against stored Horn clauses ---
-    if callback: callback("CHECK_CELL", f"Checking {goal}", subst)
+    
     clauses = kb.get(goal.functor, len(goal.args))
     for clause in clauses:
         _rename_counter += 1

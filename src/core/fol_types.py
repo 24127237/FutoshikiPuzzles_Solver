@@ -72,7 +72,7 @@ class Var(Term):
     def walk(self, subst: dict):
         """
         Variable dereferencing (simple substitution, no occurs-check).
-        Follows the binding chain: X→Y→3  becomes  Number(3).
+        Follows the binding chain: X->Y->3  becomes  Number(3).
         """
         t = self
         while isinstance(t, Var) and t.name in subst:
@@ -86,10 +86,10 @@ class Compound(Term):
     FOL: n-ary function / predicate symbol applied to terms.
 
     Examples:
-      val(v_0_0, 3)    → Compound("val",     [Atom("v_0_0"), Number(3)])
-      less(X, Y)       → Compound("less",    [Var("X"), Var("Y")])
-      neq(X, Y)        → Compound("neq",     [Var("X"), Var("Y")])
-      lh(v_0_2, v_0_3) → Compound("lh",     [Atom("v_0_2"), Atom("v_0_3")])
+      val(v_0_0, 3)    -> Compound("val",     [Atom("v_0_0"), Number(3)])
+      less(X, Y)       -> Compound("less",    [Var("X"), Var("Y")])
+      neq(X, Y)        -> Compound("neq",     [Var("X"), Var("Y")])
+      lh(v_0_2, v_0_3) -> Compound("lh",     [Atom("v_0_2"), Atom("v_0_3")])
     """
     def __init__(self, functor: str, args: list):
         self.functor = functor

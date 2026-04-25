@@ -326,14 +326,14 @@ class FutoshikiGUI:
                 
                 elif event_type == "CONFLICT":
                     # Log: Result: Conflict
-                    self.write_log(f"  Result: Conflict")
+                    self.write_log(f"  {msg}")
                     # Cập nhật trạng thái cho node cuối cùng trên cây
                     nodes = self.tree.get_children()
                     if nodes: self.tree.item(nodes[-1], values=("Conflict, backtracking",))
                 
                 elif event_type == "SUCCESS":
                     # Log: Result: Success
-                    self.write_log("  Result: Success")
+                    self.write_log(f"  Success: {msg}")
                     # Cập nhật trạng thái cho node cuối cùng trên cây
                     nodes = self.tree.get_children()
                     if nodes: self.tree.item(nodes[-1], values=("Success",))
