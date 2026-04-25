@@ -5,10 +5,10 @@ class BruteForceSolver:
         self.rules = rules
         self.limit = limit
         self.nodes_visited = 0
-
+        self.stats = {"num_expansions": 0}
     def solve(self, grid):
         self.nodes_visited += 1
-        
+        self.stats["num_expansions"] = self.stats.get("num_expansions", 0) + 1
         # Nếu vượt quá giới hạn, trả về một chuỗi đặc biệt để GUI nhận biết
         if self.nodes_visited > self.limit:
             return "LIMIT_EXCEEDED"
