@@ -22,6 +22,7 @@ from src.solver.Backtracking import BacktrackingSolver
 from src.solver.PureBackwardChaining import BackwardSolver
 from src.solver.FCHybrid import FCHybridSolver
 from src.solver.PureForwardChaining import PureForwardChainingSolver
+from src.solver.Bruteforce import BruteForceSolver
 
 ALGORITHMS = [
     "fc_hybrid",
@@ -31,6 +32,7 @@ ALGORITHMS = [
     "pure_backward_chaining",
     "astar",
     "backtracking",
+    "bruteforce"
 ]
 
 
@@ -91,7 +93,10 @@ def run_algorithm_once(algorithm: str, input_path: str) -> dict:
         solver = BacktrackingSolver(rules)
         result_grid = solver.solve(State(n, grid, rules))
         stats = dict(getattr(solver, "stats", {}))
-
+    elif algorithm == "bruteforce":
+        solver = BruteForceSolver(rules)
+        result_grid = solver.solve(grid)
+        stats = dict(getattr(solver, "stats", {}))
     elif algorithm == "fc_pure":
         solver = PureForwardChainingSolver(rules)
         result_grid = solver.solve(State(n, grid, rules))
