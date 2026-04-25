@@ -120,6 +120,7 @@ def sld_resolve(goals: list, subst: dict, kb: KnowledgeBase, stats: dict = None,
 
     if stats is not None:
         stats["num_goal_expansions"] = stats.get("num_goal_expansions", 0) + 1
+        stats["num_inferences"] = stats.get("num_inferences", 0) + 1
     
 # ---------------- BỘ LỌC LÀM ĐẸP LOG ----------------
     if callback:
