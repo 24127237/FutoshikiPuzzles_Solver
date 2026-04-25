@@ -10,7 +10,6 @@ from src.solver.Astar import AstarSolver
 from src.solver.Backtracking import BacktrackingSolver
 from src.solver.Bruteforce import BruteForceSolver
 from src.solver.FCHybrid import FCHybridSolver
-from src.solver.PureBackwardChaining import query_cells
 
 class FutoshikiGUI:
     def __init__(self, root):
@@ -153,61 +152,59 @@ class FutoshikiGUI:
             self.draw_grid_on_canvas(self.canvas_output, n, self.current_result, h_const, v_const, is_result=True)
 
     def draw_grid_on_canvas(self, canvas, n, grid, h_const, v_const, is_result=False):
-        canvas.delete("all")
+        canvas.delete("all")  # Xóa sạch để vẽ lại từ đầu (chỉ dùng khi load bài mới hoặc resize)
         if n == 0: return
         
         canvas.update_idletasks()
         c_width = canvas.winfo_width()
         c_height = canvas.winfo_height()
-        
-        if c_width < 10 or c_height < 10:
-            c_width, c_height = 400, 400
+        if c_width < 10: c_width, c_height = 400, 400 # Mặc định nếu chưa render
 
         margin = 20
         cell_size = min((c_width - 2*margin) / (n + (n-1)*0.5), (c_height - 2*margin) / (n + (n-1)*0.5))
-        if cell_size <= 0: cell_size = 30
-        
         spacing = cell_size * 0.5
-        
         start_x = (c_width - (n * cell_size + (n-1) * spacing)) / 2
         start_y = (c_height - (n * cell_size + (n-1) * spacing)) / 2
         
+        # Lưu lại thông số để dùng cho việc tính tọa độ chuột và vẽ overlay
+        if canvas == self.canvas_input:
+            self.last_cell_size, self.last_spacing = cell_size, spacing
+            self.last_start_x, self.last_start_y = start_x, start_y
+
         for i in range(n):
             for j in range(n):
                 x = start_x + j * (cell_size + spacing)
                 y = start_y + i * (cell_size + spacing)
                 
-                val = grid[i][j]
-                bg_color = "white" if val == 0 else ("#c8e6c9" if is_result else "#bbdefb")
-                canvas.create_rectangle(x, y, x + cell_size, y + cell_size, fill=bg_color, outline="black", width=2)
+                # --- 1. Vẽ ô lưới (Rectangle) ---
+                canvas.create_rectangle(x, y, x + cell_size, y + cell_size, 
+                                        fill="white", outline="black", width=1)
                 
+                # --- 2. Vẽ con số (Nếu có) ---
+                val = grid[i][j]
                 if val != 0:
-                    canvas.create_text(x + cell_size/2, y + cell_size/2, text=str(val), font=("Arial", int(cell_size/2.5), "bold"))
-                    
+                    canvas.create_text(x + cell_size/2, y + cell_size/2, 
+                                       text=str(val), font=("Arial", int(cell_size/2), "bold"))
+
+                # --- 3. Vẽ dấu so sánh ngang (< >) ---
                 if j < n - 1:
                     h_val = h_const[i][j]
                     if h_val != 0:
-                        text = "<" if h_val == 1 else ">"
-                        canvas.create_text(x + cell_size + spacing/2, y + cell_size/2, text=text, font=("Arial", int(cell_size/2.5), "bold"), fill="red")
+                        txt = "<" if h_val == 1 else ">"
+                        canvas.create_text(x + cell_size + spacing/2, y + cell_size/2, 
+                                           text=txt, font=("Arial", int(cell_size/3), "bold"), fill="red")
                         
+                # --- 4. Vẽ dấu so sánh dọc (^ v) ---
                 if i < n - 1:
                     v_val = v_const[i][j]
                     if v_val != 0:
-                        text = "^" if v_val == 1 else "v"
-                        canvas.create_text(x + cell_size/2, y + cell_size + spacing/2, text=text, font=("Arial", int(cell_size/2.5), "bold"), fill="red")
+                        txt = "^" if v_val == 1 else "v"
+                        canvas.create_text(x + cell_size/2, y + cell_size + spacing/2, 
+                                           text=txt, font=("Arial", int(cell_size/3), "bold"), fill="red")
 
+        # Vẽ lại vùng chọn nếu có (dùng tag để sau này update ko bị lag)
         if canvas == self.canvas_input:
-            self.last_cell_size = cell_size
-            self.last_spacing = spacing
-            self.last_start_x = start_x
-            self.last_start_y = start_y
-            for i, j in self.selected_cells:
-                x = start_x + j * (cell_size + spacing)
-                y = start_y + i * (cell_size + spacing)
-                canvas.create_rectangle(
-                    x, y, x + cell_size, y + cell_size,
-                    fill="#ADD8E6", stipple="gray25", outline="#1976D2", width=2
-                )
+            self.update_selection_highlight()
 
     # --- Logic Chọn Range ---
     
@@ -243,21 +240,36 @@ class FutoshikiGUI:
         self.redraw_input()
 
     def canvas_drag(self, event):
-        if self.selection_start is None:
-            return
+        if self.selection_start is None: return
         cell = self.get_cell_from_event(event)
-        if not cell:
-            return
+        if not cell: return
 
         r_start, c_start = self.selection_start
         r_end, c_end = cell
-        self.selected_cells = [
+        
+        # Chỉ tính toán lại vùng chọn
+        new_selection = [
             (r, c)
             for r in range(min(r_start, r_end), max(r_start, r_end) + 1)
             for c in range(min(c_start, c_end), max(c_start, c_end) + 1)
         ]
-        self.redraw_input()
+        
+        if new_selection != self.selected_cells:
+            self.selected_cells = new_selection
+            self.update_selection_highlight() # Cập nhật lớp phủ, không vẽ lại cả bảng
 
+    def update_selection_highlight(self):
+        # Xóa duy nhất những đối tượng có tag "selection_overlay"
+        self.canvas_input.delete("selection_overlay")
+        
+        for r, c in self.selected_cells:
+            x = self.last_start_x + c * (self.last_cell_size + self.last_spacing)
+            y = self.last_start_y + r * (self.last_cell_size + self.last_spacing)
+            self.canvas_input.create_rectangle(
+                x, y, x + self.last_cell_size, y + self.last_cell_size,
+                fill="#ADD8E6", stipple="gray25", outline="#1976D2", width=2,
+                tags="selection_overlay" # Đánh dấu để xóa chính xác lần sau
+            )
     def clear_selection(self):
         self.selected_cells = []
         self.selection_start = None
@@ -279,41 +291,76 @@ class FutoshikiGUI:
             return
 
         self.btn_infer.config(state=tk.DISABLED)
+        # Remove demo inference and callback from sld_resolve
         self.status_var.set("Running inference...")
         threading.Thread(target=self.bc_inference, daemon=True).start()
-
+    
     def bc_inference(self):
+        n, grid, h_const, v_const = self.current_puzzle
+        from src.core.fol_kb import build_kb
+        from src.solver.PureBackwardChaining import sld_resolve, query_cells
+        from src.core.fol_types import Number
+
+        # 1. Lấy tọa độ ô đầu tiên trong vùng chọn
+        r, c = self.selected_cells[0]
+        new_r, new_c = r + 1, c + 1  # Chuyển sang 1-based index cho FOL
+        
+        # 2. Khởi tạo Knowledge Base và sử dụng query_cells để tạo goals cho 1 ô
+        kb = build_kb(n, grid, h_const, v_const)
+        goals, qvar = query_cells(n, r, c, grid, h_const, v_const)
+        
+        # Xóa Treeview cũ
+        self.root.after(0, lambda: self.tree.delete(*self.tree.get_children()))
+        self.root.after(0, lambda: self.write_log(f"--- Query Cell: ({new_r}, {new_c}) ---"))
+
+        possible_values = set()
+
+        def trace_callback(event_type, msg, subst=None):
+            def _ui_update():
+                if event_type == "CHECK_CELL":
+                    # Log: Checking goal: ...
+                    self.write_log(f"Checking goal: {msg}")
+                elif event_type == "TRY_VALUE":
+                    self.write_log(f"  Step: test value: {msg}")
+                    self.tree.insert("", "end", text=f"Try: {msg}", values=("",))
+                
+                elif event_type == "CONFLICT":
+                    # Log: Result: Conflict
+                    self.write_log(f"  Result: Conflict")
+                    # Cập nhật trạng thái cho node cuối cùng trên cây
+                    nodes = self.tree.get_children()
+                    if nodes: self.tree.item(nodes[-1], values=("Conflict, backtracking",))
+                
+                elif event_type == "SUCCESS":
+                    # Log: Result: Success
+                    self.write_log("  Result: Success")
+                    # Cập nhật trạng thái cho node cuối cùng trên cây
+                    nodes = self.tree.get_children()
+                    if nodes: self.tree.item(nodes[-1], values=("Success",))
+                    if subst is not None:
+                        bound_term = qvar.walk(subst)
+                        if isinstance(bound_term, Number):
+                            possible_values.add(bound_term.value)
+
+            self.root.after(0, _ui_update)
+
         try:
-            n, grid, h_const, v_const = self.current_puzzle
-            valid = query_cells(n, self.selected_cells, grid, h_const, v_const)
-            self.root.after(0, self._finish_bc_inference)
+            # Chạy SLD Resolution
+            list(sld_resolve(goals, {}, kb, callback=trace_callback))
+            
+            # --- FINAL LOG ---
+            v_range = sorted(list(possible_values))
+            status = "Success" if v_range else "Conflict"
+            
+            # Định dạng: Test Val(r,c,v)? -> Success/Conflict
+            final_msg = f"Conclusion: {status}: Test Val({new_r},{new_c},)? = {v_range}"
+            self.root.after(0, lambda: self.write_log(final_msg))
+                               
+            self.root.after(0, lambda: self.status_var.set("Inference Complete"))
         except Exception as e:
-            def handle_error():
-                self.write_log(f"Lỗi suy luận: {e}")
-                self.status_var.set("Inference failed")
-                self.btn_infer.config(state=tk.NORMAL)
-            self.root.after(0, handle_error)
-
-    def _finish_bc_inference(self):
-        self.tree.delete(*self.tree.get_children())
-        self.write_log(f"Bắt đầu suy luận ngược cho {len(self.selected_cells)} ô...")
-
-        root_node = self.tree.insert("", "end", text="Main Goal: Fill Range", open=True)
-        for r, c in self.selected_cells:
-            node = self.tree.insert(root_node, "end", text=f"Checking Cell ({r},{c})", open=True)
-            for val in range(1, 3):
-                status = "OK" if val == 1 else "Conflict (Row)"
-                sub_node = self.tree.insert(node, "end", text=f"Try value: {val}", values=(status,))
-                if status != "OK":
-                    self.tree.item(sub_node, tags=('fail',))
-                    self.write_log(f"Ô ({r},{c}) thử giá trị {val} -> Thất bại, quay lui!")
-                else:
-                    self.write_log(f"Ô ({r},{c}) thử giá trị {val} -> Khả thi.")
-
-        self.tree.tag_configure('fail', foreground='red')
-        self.btn_infer.config(state=tk.NORMAL)
-        self.status_var.set("Inference complete")
-
+            self.root.after(0, lambda: self.write_log(f"Lỗi: {e}"))
+        finally:
+            self.root.after(0, lambda: self.btn_infer.config(state=tk.NORMAL))
     def run_solver(self):
         filename = self.test_combo.get()
         if not filename: return
